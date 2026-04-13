@@ -1,0 +1,26 @@
+# Python
+backend/venv/
+backend/__pycache__/
+backend/**/__pycache__/
+*.pyc
+*.pyo
+
+# Секреты — никогда не коммитим
+.env
+backend/.env
+**/.env.local
+
+# Загружаемые файлы (хранятся на сервере, не в git)
+backend/uploads/*
+!backend/uploads/.gitkeep
+
+# Node
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/build/
+
+# Системное
+.DS_Store
+Thumbs.db
+*.log
