@@ -1,12 +1,12 @@
 'use client'
-import { useState } from 'react'
+import { Suspense, useState } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import api from '@/lib/api'
 
 const input = "w-full border border-stone-300 rounded-xl px-3 py-2.5 text-stone-900 focus:outline-none focus:ring-2 focus:ring-orange-400 bg-white"
 
-export default function ResetPasswordPage() {
+function ResetPasswordForm() {
   const params = useSearchParams()
   const token = params.get('token')
   const router = useRouter()
@@ -36,54 +36,59 @@ export default function ResetPasswordPage() {
 
   if (!token) {
     return (
-      <div className="max-w-md mx-auto mt-20 text-center">
-        <div className="bg-white border border-stone-200 rounded-2xl p-10">
-          <div className="text-4xl mb-4">❌</div>
-          <p className="text-stone-600 mb-4">Неверная ссылка для сброса пароля.</p>
-          <Link href="/forgot-password" className="text-orange-600 hover:text-orange-700 font-medium">
-            Запросить новую ссылку
-          </Link>
-        </div>
+      <div className="bg-white border border-stone-200 rounded-2xl p-10 text-center">
+        <div className="text-4xl mb-4">❌</div>
+        <p className="text-stone-600 mb-4">Неверная ссылка для сброса пароля.</p>
+        <Link href="/forgot-password" className="text-orange-600 hover:text-orange-700 font-medium">
+          Запросить новую ссылку
+        </Link>
       </div>
     )
   }
 
+  return (
+    <div className="bg-white border border-stone-200 rounded-2xl p-7 shadow-sm">
+      {done ? (
+        <div className="text-center py-4">
+          <div className="text-4xl mb-3">✅</div>
+          <p className="text-stone-700 font-semibold mb-2">Пароль изменён!</p>
+          <p className="text-stone-500 text-sm">Перенаправляем на страницу входа...</p>
+        </div>
+      ) : (
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-stone-700 mb-1">Новый пароль</label>
+            <input type="password" value={password}
+              onChange={e => setPassword(e.target.value)}
+              className={input} required minLength={6} />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-stone-700 mb-1">Повторите пароль</label>
+            <input type="password" value={password2}
+              onChange={e => setPassword2(e.target.value)}
+              className={input} required minLength={6} />
+          </div>
+          {error && <p className="text-red-500 text-sm">{error}</p>}
+          <button type="submit" disabled={loading}
+            className="w-full bg-orange-500 text-white py-2.5 rounded-xl hover:bg-orange-600 font-bold disabled:opacity-50 transition-colors">
+            {loading ? 'Сохраняем...' : 'Сохранить пароль'}
+          </button>
+        </form>
+      )}
+    </div>
+  )
+}
+
+export default function ResetPasswordPage() {
   return (
     <div className="max-w-md mx-auto mt-16">
       <div className="text-center mb-8">
         <div className="text-4xl mb-3">🔐</div>
         <h1 className="text-2xl font-extrabold text-stone-900">Новый пароль</h1>
       </div>
-
-      <div className="bg-white border border-stone-200 rounded-2xl p-7 shadow-sm">
-        {done ? (
-          <div className="text-center py-4">
-            <div className="text-4xl mb-3">✅</div>
-            <p className="text-stone-700 font-semibold mb-2">Пароль изменён!</p>
-            <p className="text-stone-500 text-sm">Перенаправляем на страницу входа...</p>
-          </div>
-        ) : (
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-stone-700 mb-1">Новый пароль</label>
-              <input type="password" value={password}
-                onChange={e => setPassword(e.target.value)}
-                className={input} required minLength={6} />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-stone-700 mb-1">Повторите пароль</label>
-              <input type="password" value={password2}
-                onChange={e => setPassword2(e.target.value)}
-                className={input} required minLength={6} />
-            </div>
-            {error && <p className="text-red-500 text-sm">{error}</p>}
-            <button type="submit" disabled={loading}
-              className="w-full bg-orange-500 text-white py-2.5 rounded-xl hover:bg-orange-600 font-bold disabled:opacity-50 transition-colors">
-              {loading ? 'Сохраняем...' : 'Сохранить пароль'}
-            </button>
-          </form>
-        )}
-      </div>
+      <Suspense fallback={<div className="text-center text-stone-500">Загрузка...</div>}>
+        <ResetPasswordForm />
+      </Suspense>
     </div>
   )
 }
