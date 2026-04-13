@@ -1,0 +1,918 @@
+'use client'
+import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
+import api from '@/lib/api'
+import { useAuth } from '@/context/AuthContext'
+
+interface Event { id: string; title: string; status: string; starts_at: string }
+interface Post { id: string; title: string; content: string; is_published: boolean; image_filename: string | null; created_at: string }
+interface TeamMember { id: string; user_id: string | null; guest_name: string | null; guest_email: string | null; display_name: string | null; display_email: string | null; role: string; is_registered: boolean }
+interface Team { id: string; name: string; status: string; category: string; members: TeamMember[] }
+interface Question { id: string; number: number; text: string; correct_answer: string | null; max_points: number; is_published: boolean; image_filename?: string | null }
+
+const input = "w-full border border-stone-300 rounded-xl px-3 py-2 text-stone-900 focus:outline-none focus:ring-2 focus:ring-orange-400 bg-white"
+const btn = "bg-orange-500 text-white px-5 py-2 rounded-xl hover:bg-orange-600 font-medium transition-colors"
+const btnSm = "text-sm bg-orange-500 text-white px-3 py-1.5 rounded-lg hover:bg-orange-600 font-medium transition-colors"
+const card = "bg-white border border-stone-200 rounded-2xl p-5"
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+
+// Цвет и метаданные КП по номеру
+function kpMeta(num: number) {
+  const b = num < 100 ? num : num - 100
+  if (b === 0)           return { border: 'border-yellow-400', bg: 'bg-yellow-50',  badge: 'bg-yellow-400 text-yellow-900',  label: 'Старт' }
+  if (b >= 1 && b <= 19) return { border: 'border-orange-400', bg: 'bg-orange-50',  badge: 'bg-orange-500 text-white',        label: 'КП' }
+  if (b >= 21 && b <= 29)return { border: 'border-blue-400',   bg: 'bg-blue-50',    badge: 'bg-blue-500 text-white',          label: 'КП↕' }
+  if (b >= 31 && b <= 39)return { border: 'border-green-500',  bg: 'bg-green-50',   badge: 'bg-green-600 text-white',         label: 'ФотоКП' }
+  if (b === 99)          return { border: 'border-yellow-400', bg: 'bg-yellow-50',  badge: 'bg-yellow-400 text-yellow-900',   label: 'Финиш' }
+  return                        { border: 'border-stone-200',  bg: 'bg-white',      badge: 'bg-stone-500 text-white',         label: 'КП' }
+}
+
+export default function AdminPage() {
+  const { user, loading } = useAuth()
+  const router = useRouter()
+
+  const [events, setEvents] = useState<Event[]>([])
+  const [posts, setPosts] = useState<Post[]>([])
+  const [tab, setTab] = useState<'events' | 'posts' | 'teams' | 'results' | 'questions' | 'info'>('events')
+
+  const [eventForm, setEventForm] = useState({ title: '', description: '', starts_at: '', ends_at: '', reg_deadline: '', min_team_size: 2, max_team_size: 5 })
+  const [postForm, setPostForm] = useState({ title: '', content: '', is_published: false })
+  const [eventError, setEventError] = useState('')
+  const [postError, setPostError] = useState('')
+  const [uploadingPostId, setUploadingPostId] = useState<string | null>(null)
+
+  const [selectedEventId, setSelectedEventId] = useState('')
+  const [eventTeams, setEventTeams] = useState<Team[]>([])
+  const [eventResults, setEventResults] = useState<any[]>([])
+  const [resultForm, setResultForm] = useState({ team_id: '', rank: '', score: '', notes: '' })
+
+  // Вопросы
+  const [questions, setQuestions] = useState<Question[]>([])
+  const [qForm, setQForm] = useState({ number: 1, text: '', correct_answer: '', max_points: 1 })
+  const [qResults, setQResults] = useState<Record<string, number>>({})
+  const [qTeams, setQTeams] = useState<{ id: string; name: string }[]>([])
+  const [editingQ, setEditingQ] = useState<string | null>(null)
+  const [editQForm, setEditQForm] = useState({ text: '', correct_answer: '', max_points: 1, is_published: false })
+  const [importKpMsg, setImportKpMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
+  const [importResMsg, setImportResMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
+  const [importingKp, setImportingKp] = useState(false)
+  const [importingRes, setImportingRes] = useState(false)
+  const [publishMsg, setPublishMsg] = useState('')
+
+  const [infoForm, setInfoForm] = useState({ title: '', content: '', is_published: true })
+  const [infoMsg, setInfoMsg] = useState('')
+  const [infoLoaded, setInfoLoaded] = useState(false)
+
+  useEffect(() => {
+    if (!loading && (!user || user.role !== 'admin')) router.push('/')
+  }, [user, loading])
+
+  useEffect(() => {
+    if (!user || user.role !== 'admin') return
+    api.get('/admin/events').then(res => setEvents(res.data))
+    api.get('/admin/posts').then(res => setPosts(res.data))
+  }, [user])
+
+  async function loadEventData(eventId: string) {
+    setSelectedEventId(eventId)
+    const [resultsRes, teamsRes] = await Promise.all([
+      api.get(`/admin/results/${eventId}`),
+      api.get(`/admin/teams/${eventId}`),
+    ])
+    setEventResults(resultsRes.data)
+    setEventTeams(teamsRes.data)
+    setResultForm({ team_id: '', rank: '', score: '', notes: '' })
+  }
+
+  async function loadQuestionsData(eventId: string) {
+    setSelectedEventId(eventId)
+    const res = await api.get(`/admin/events/${eventId}/question-results`)
+    setQuestions(res.data.questions)
+    setQTeams(res.data.teams)
+    setQResults(res.data.results as Record<string, number>)
+    setQForm(prev => ({ ...prev, number: (res.data.questions.length || 0) + 1 }))
+  }
+
+  async function handleCreateEvent(e: React.FormEvent) {
+    e.preventDefault(); setEventError('')
+    try {
+      const res = await api.post('/admin/events', eventForm)
+      setEvents([...events, res.data])
+      setEventForm({ title: '', description: '', starts_at: '', ends_at: '', reg_deadline: '', min_team_size: 2, max_team_size: 5 })
+    } catch { setEventError('Ошибка при создании мероприятия') }
+  }
+
+  async function handleCreatePost(e: React.FormEvent) {
+    e.preventDefault(); setPostError('')
+    try {
+      const res = await api.post('/admin/posts', postForm)
+      setPosts([res.data, ...posts])
+      setPostForm({ title: '', content: '', is_published: false })
+    } catch { setPostError('Ошибка при создании новости') }
+  }
+
+  async function togglePostPublish(post: Post) {
+    const res = await api.patch(`/admin/posts/${post.id}`, { ...post, is_published: !post.is_published })
+    setPosts(posts.map(p => p.id === post.id ? res.data : p))
+  }
+
+  async function handlePostImageUpload(postId: string, file: File) {
+    const formData = new FormData()
+    formData.append('file', file)
+    setUploadingPostId(postId)
+    try {
+      const res = await api.post(`/admin/posts/${postId}/image`, formData, { headers: { 'Content-Type': 'multipart/form-data' } })
+      setPosts(posts.map(p => p.id === postId ? { ...p, image_filename: res.data.image_filename } : p))
+    } catch { alert('Ошибка при загрузке фото') }
+    finally { setUploadingPostId(null) }
+  }
+
+  async function changeEventStatus(id: string, status: string) {
+    await api.patch(`/admin/events/${id}/status?status=${status}`)
+    setEvents(events.map(e => e.id === id ? { ...e, status } : e))
+  }
+
+  async function handleCreateResult(e: React.FormEvent) {
+    e.preventDefault()
+    await api.post('/admin/results', { ...resultForm, event_id: selectedEventId })
+    const res = await api.get(`/admin/results/${selectedEventId}`)
+    setEventResults(res.data)
+    setResultForm({ team_id: '', rank: '', score: '', notes: '' })
+  }
+
+  async function deleteTeam(teamId: string) {
+    if (!confirm('Удалить команду?')) return
+    await api.delete(`/admin/teams/${teamId}`)
+    setEventTeams(eventTeams.filter(t => t.id !== teamId))
+  }
+
+  async function changeTeamCategory(teamId: string, category: string) {
+    await api.patch(`/admin/teams/${teamId}/category?category=${category}`)
+    setEventTeams(eventTeams.map(t => t.id === teamId ? { ...t, category } : t))
+  }
+
+  async function deleteMember(teamId: string, memberId: string) {
+    if (!confirm('Удалить участника?')) return
+    await api.delete(`/admin/members/${memberId}`)
+    setEventTeams(eventTeams.map(t => t.id === teamId ? { ...t, members: t.members.filter(m => m.id !== memberId) } : t))
+  }
+
+  async function handleCreateQuestion(e: React.FormEvent) {
+    e.preventDefault()
+    const res = await api.post(`/admin/events/${selectedEventId}/questions`, qForm)
+    setQuestions([...questions, res.data])
+    setQForm(prev => ({ ...prev, number: prev.number + 1, text: '', correct_answer: '' }))
+  }
+
+  async function handleSaveQuestion(qId: string) {
+    const res = await api.patch(`/admin/questions/${qId}`, editQForm)
+    setQuestions(questions.map(q => q.id === qId ? { ...q, ...res.data } : q))
+    setEditingQ(null)
+  }
+
+  async function handleDeleteQuestion(qId: string) {
+    if (!confirm('Удалить вопрос?')) return
+    await api.delete(`/admin/questions/${qId}`)
+    setQuestions(questions.filter(q => q.id !== qId))
+  }
+
+  async function handleQuestionImageUpload(qId: string, file: File) {
+    const fd = new FormData(); fd.append('file', file)
+    try {
+      const res = await api.post(`/admin/questions/${qId}/image`, fd, { headers: { 'Content-Type': 'multipart/form-data' } })
+      setQuestions(questions.map(q => q.id === qId ? { ...q, image_filename: res.data.image_filename } : q))
+    } catch { alert('Ошибка при загрузке фото') }
+  }
+
+  async function handleSetPoints(qId: string, teamId: string, points: number) {
+    await api.post(`/admin/questions/${qId}/results`, { team_id: teamId, points_earned: points })
+    setQResults(prev => ({ ...prev, [`${qId}|${teamId}`]: points }))
+  }
+
+  async function handlePublishResults(publish: boolean) {
+    if (!selectedEventId) return
+    setPublishMsg('')
+    try {
+      const endpoint = publish ? 'publish-results' : 'unpublish-results'
+      const res = await api.post(`/admin/events/${selectedEventId}/${endpoint}`)
+      const count = publish ? res.data.published : res.data.unpublished
+      setPublishMsg(publish ? `✓ Опубликовано ${count} вопросов — команды видят результаты` : `Скрыто ${count} вопросов`)
+      await loadQuestionsData(selectedEventId)
+    } catch { setPublishMsg('Ошибка') }
+  }
+
+  function handleDownloadTemplate() {
+    if (!selectedEventId) return
+    const token = localStorage.getItem('token')
+    const url = `http://localhost:8000/admin/events/${selectedEventId}/results-template`
+    fetch(url, { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.blob())
+      .then(blob => {
+        const a = document.createElement('a')
+        a.href = URL.createObjectURL(blob)
+        a.download = 'results_template.xlsx'
+        a.click()
+      })
+  }
+
+  async function loadInfoPage() {
+    try {
+      const res = await api.get('/admin/pages/info')
+      setInfoForm({ title: res.data.title, content: res.data.content, is_published: res.data.is_published })
+    } catch {
+      setInfoForm({ title: 'О проекте', content: '', is_published: true })
+    }
+    setInfoLoaded(true)
+  }
+
+  async function handleSaveInfo(e: React.FormEvent) {
+    e.preventDefault(); setInfoMsg('')
+    try {
+      await api.put('/admin/pages/info', infoForm)
+      setInfoMsg('Сохранено')
+    } catch { setInfoMsg('Ошибка') }
+  }
+
+  async function handleImportKp(file: File) {
+    if (!selectedEventId) return
+    setImportingKp(true); setImportKpMsg(null)
+    try {
+      const fd = new FormData(); fd.append('file', file)
+      const res = await api.post(`/admin/events/${selectedEventId}/import-kp-excel`, fd, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      })
+      setImportKpMsg({ type: 'ok', text: res.data.message })
+      await loadQuestionsData(selectedEventId)
+    } catch (e: any) {
+      setImportKpMsg({ type: 'err', text: e?.response?.data?.detail || 'Ошибка импорта' })
+    } finally { setImportingKp(false) }
+  }
+
+  async function handleImportResults(file: File) {
+    if (!selectedEventId) return
+    setImportingRes(true); setImportResMsg(null)
+    try {
+      const fd = new FormData(); fd.append('file', file)
+      const res = await api.post(`/admin/events/${selectedEventId}/import-results-excel`, fd, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      })
+      const d = res.data
+      let text = `Создано ${d.created} результатов.`
+      if (d.auto_created_teams) text += ` Автоматически создано команд: ${d.auto_created_teams}.`
+      text += ` Совпало команд: ${d.teams_found?.length || 0}.`
+      if (d.unmatched_teams?.length) text += ` Не найдено: ${d.unmatched_teams.join(', ')}`
+      setImportResMsg({ type: d.unmatched_teams?.length ? 'err' : 'ok', text })
+      await loadQuestionsData(selectedEventId)
+    } catch (e: any) {
+      setImportResMsg({ type: 'err', text: e?.response?.data?.detail || 'Ошибка импорта' })
+    } finally { setImportingRes(false) }
+  }
+
+  if (loading) return <p className="text-stone-700">Загрузка...</p>
+  if (!user || user.role !== 'admin') return null
+
+  const tabs = [
+    { key: 'events', label: '📅 Мероприятия' },
+    { key: 'posts', label: '📰 Новости' },
+    { key: 'teams', label: '👥 Команды' },
+    { key: 'results', label: '🏆 Результаты' },
+    { key: 'questions', label: '❓ Вопросы' },
+    { key: 'info', label: '📄 Страница' },
+  ] as const
+
+  const eventSelector = (onSelect: (id: string) => void) => (
+    <div className="flex flex-wrap gap-2 mb-6">
+      {events.map(ev => (
+        <button
+          key={ev.id}
+          onClick={() => onSelect(ev.id)}
+          className={`px-4 py-2 rounded-xl text-sm font-medium border transition-colors ${
+            selectedEventId === ev.id
+              ? 'bg-orange-500 text-white border-orange-500'
+              : 'border-stone-300 text-stone-700 hover:border-orange-400 bg-white'
+          }`}
+        >
+          {ev.title}
+        </button>
+      ))}
+    </div>
+  )
+
+  return (
+    <div className="space-y-6">
+      <h1 className="text-2xl font-extrabold text-stone-900">Панель администратора</h1>
+
+      {/* Табы */}
+      <div className="flex gap-1 border-b border-stone-200">
+        {tabs.map(t => (
+          <button
+            key={t.key}
+            onClick={() => setTab(t.key)}
+            className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+              tab === t.key
+                ? 'border-orange-500 text-orange-600'
+                : 'border-transparent text-stone-500 hover:text-stone-800'
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {/* ── МЕРОПРИЯТИЯ ── */}
+      {tab === 'events' && (
+        <div className="space-y-6">
+          <div className={card}>
+            <h2 className="font-bold text-stone-900 mb-4">Новое мероприятие</h2>
+            <form onSubmit={handleCreateEvent} className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-stone-700 mb-1">Название</label>
+                  <input value={eventForm.title} onChange={e => setEventForm({ ...eventForm, title: e.target.value })} className={input} required />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-stone-700 mb-1">Описание</label>
+                  <input value={eventForm.description} onChange={e => setEventForm({ ...eventForm, description: e.target.value })} className={input} />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-stone-700 mb-1">Начало</label>
+                  <input type="datetime-local" value={eventForm.starts_at} onChange={e => setEventForm({ ...eventForm, starts_at: e.target.value })} className={input} required />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-stone-700 mb-1">Конец</label>
+                  <input type="datetime-local" value={eventForm.ends_at} onChange={e => setEventForm({ ...eventForm, ends_at: e.target.value })} className={input} required />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-stone-700 mb-1">Дедлайн регистрации</label>
+                  <input type="datetime-local" value={eventForm.reg_deadline} onChange={e => setEventForm({ ...eventForm, reg_deadline: e.target.value })} className={input} required />
+                </div>
+                <div className="flex gap-3">
+                  <div className="flex-1">
+                    <label className="block text-sm font-medium text-stone-700 mb-1">Мин. участников</label>
+                    <input type="number" value={eventForm.min_team_size} onChange={e => setEventForm({ ...eventForm, min_team_size: +e.target.value })} className={input} />
+                  </div>
+                  <div className="flex-1">
+                    <label className="block text-sm font-medium text-stone-700 mb-1">Макс. участников</label>
+                    <input type="number" value={eventForm.max_team_size} onChange={e => setEventForm({ ...eventForm, max_team_size: +e.target.value })} className={input} />
+                  </div>
+                </div>
+              </div>
+              {eventError && <p className="text-red-500 text-sm">{eventError}</p>}
+              <button type="submit" className={btn}>Создать мероприятие</button>
+            </form>
+          </div>
+
+          <div>
+            <h2 className="font-bold text-stone-900 mb-3">Все мероприятия</h2>
+            <div className="space-y-2">
+              {events.map(ev => (
+                <div key={ev.id} className={`${card} flex justify-between items-center py-3`}>
+                  <div>
+                    <p className="font-semibold text-stone-900">{ev.title}</p>
+                    <p className="text-sm text-stone-500">{new Date(ev.starts_at).toLocaleDateString('ru-RU')}</p>
+                  </div>
+                  <select value={ev.status} onChange={e => changeEventStatus(ev.id, e.target.value)}
+                    className="text-sm border border-stone-300 rounded-xl px-3 py-1.5 text-stone-800 bg-white focus:outline-none focus:ring-2 focus:ring-orange-400">
+                    <option value="open">Открыто</option>
+                    <option value="closed">Закрыто</option>
+                    <option value="finished">Завершено</option>
+                  </select>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── НОВОСТИ ── */}
+      {tab === 'posts' && (
+        <div className="space-y-6">
+          <div className={card}>
+            <h2 className="font-bold text-stone-900 mb-4">Новая новость</h2>
+            <form onSubmit={handleCreatePost} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-stone-700 mb-1">Заголовок</label>
+                <input value={postForm.title} onChange={e => setPostForm({ ...postForm, title: e.target.value })} className={input} required />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-stone-700 mb-1">Текст</label>
+                <textarea value={postForm.content} onChange={e => setPostForm({ ...postForm, content: e.target.value })} rows={5} className={input} required />
+              </div>
+              <label className="flex items-center gap-2 text-sm text-stone-700 cursor-pointer">
+                <input type="checkbox" checked={postForm.is_published} onChange={e => setPostForm({ ...postForm, is_published: e.target.checked })} />
+                Опубликовать сразу
+              </label>
+              {postError && <p className="text-red-500 text-sm">{postError}</p>}
+              <button type="submit" className={btn}>Создать новость</button>
+            </form>
+          </div>
+
+          <div>
+            <h2 className="font-bold text-stone-900 mb-3">Все новости</h2>
+            <div className="space-y-3">
+              {posts.map(post => (
+                <div key={post.id} className={`${card} space-y-3`}>
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <p className="font-semibold text-stone-900">{post.title}</p>
+                      <p className="text-sm text-stone-500">{new Date(post.created_at).toLocaleDateString('ru-RU')}</p>
+                    </div>
+                    <button onClick={() => togglePostPublish(post)}
+                      className={`text-sm px-3 py-1 rounded-full font-medium ${post.is_published ? 'bg-green-100 text-green-700' : 'bg-stone-100 text-stone-600'}`}>
+                      {post.is_published ? 'Опубликовано' : 'Черновик'}
+                    </button>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    {post.image_filename && (
+                      <img src={`${API_URL}/uploads/${post.image_filename}`} alt="" className="h-16 w-24 object-cover rounded-xl border border-stone-200" />
+                    )}
+                    <label className="cursor-pointer text-sm text-orange-600 hover:text-orange-700 font-medium">
+                      {uploadingPostId === post.id ? 'Загрузка...' : post.image_filename ? '🔄 Заменить фото' : '📷 Добавить фото'}
+                      <input type="file" accept="image/*" className="hidden" disabled={uploadingPostId === post.id}
+                        onChange={e => { const f = e.target.files?.[0]; if (f) handlePostImageUpload(post.id, f); e.target.value = '' }} />
+                    </label>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── КОМАНДЫ ── */}
+      {tab === 'teams' && (
+        <div className="space-y-5">
+          <h2 className="font-bold text-stone-900">Выберите мероприятие</h2>
+          {eventSelector(loadEventData)}
+          {selectedEventId && (
+            <div className="space-y-4">
+              <h3 className="font-bold text-stone-900">Команды ({eventTeams.length})</h3>
+              {eventTeams.length === 0 ? <p className="text-stone-500">Команд пока нет</p> : eventTeams.map(team => (
+                <div key={team.id} className={card}>
+                  <div className="flex justify-between items-center mb-3 gap-3">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h4 className="font-bold text-stone-900">{team.name}</h4>
+                      {/* Переключатель зачёта */}
+                      <select
+                        value={team.category || 'child'}
+                        onChange={e => changeTeamCategory(team.id, e.target.value)}
+                        className={`text-xs font-semibold px-2 py-1 rounded-full border cursor-pointer focus:outline-none transition-colors ${
+                          (team.category || 'child') === 'adult'
+                            ? 'bg-orange-50 border-orange-300 text-orange-700'
+                            : 'bg-violet-50 border-violet-300 text-violet-700'
+                        }`}
+                      >
+                        <option value="child">🧒 Детский</option>
+                        <option value="adult">🧑 Взрослый</option>
+                      </select>
+                      <a href={`/teams/${team.id}/results`} target="_blank" rel="noreferrer"
+                        className="text-xs text-orange-600 hover:text-orange-700 font-medium border border-orange-200 px-2 py-0.5 rounded-lg">
+                        Результаты ↗
+                      </a>
+                    </div>
+                    <button onClick={() => deleteTeam(team.id)} className="text-sm text-red-500 hover:text-red-700 border border-red-200 px-3 py-1 rounded-lg hover:bg-red-50 shrink-0">Удалить</button>
+                  </div>
+                  <table className="w-full text-sm">
+                    <thead className="bg-stone-50">
+                      <tr>
+                        {['Имя', 'Email', 'Роль', 'Статус', ''].map(h => (
+                          <th key={h} className="text-left px-3 py-2 font-medium text-stone-700">{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {team.members.map(m => (
+                        <tr key={m.id} className="border-t border-stone-100">
+                          <td className="px-3 py-2 text-stone-900">{m.display_name || '—'}</td>
+                          <td className="px-3 py-2 text-stone-600">{m.display_email || '—'}</td>
+                          <td className="px-3 py-2">
+                            <span className={`text-xs px-2 py-0.5 rounded-full ${m.role === 'captain' ? 'bg-amber-100 text-amber-800' : 'bg-stone-100 text-stone-700'}`}>
+                              {m.role === 'captain' ? '👑 Капитан' : 'Участник'}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2">
+                            <span className={`text-xs px-2 py-0.5 rounded-full ${m.is_registered ? 'bg-green-100 text-green-800' : 'bg-stone-100 text-stone-600'}`}>
+                              {m.is_registered ? 'Зарег.' : 'Гость'}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2">
+                            {m.role !== 'captain' && (
+                              <button onClick={() => deleteMember(team.id, m.id)} className="text-red-400 hover:text-red-600 text-xs">Удалить</button>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── РЕЗУЛЬТАТЫ ── */}
+      {tab === 'results' && (
+        <div className="space-y-5">
+          <h2 className="font-bold text-stone-900">Выберите мероприятие</h2>
+          {eventSelector(loadEventData)}
+          {selectedEventId && (
+            <>
+              <div className={card}>
+                <h3 className="font-bold text-stone-900 mb-4">Добавить итоговый результат</h3>
+                <form onSubmit={handleCreateResult} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-stone-700 mb-1">Команда</label>
+                    <select value={resultForm.team_id} onChange={e => setResultForm({ ...resultForm, team_id: e.target.value })} className={input} required>
+                      <option value="">Выберите команду</option>
+                      {eventTeams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-stone-700 mb-1">Место</label>
+                    <input placeholder="1, 2, 3..." value={resultForm.rank} onChange={e => setResultForm({ ...resultForm, rank: e.target.value })} className={input} />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-stone-700 mb-1">Счёт</label>
+                    <input placeholder="Например: 95 баллов" value={resultForm.score} onChange={e => setResultForm({ ...resultForm, score: e.target.value })} className={input} />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-stone-700 mb-1">Примечание</label>
+                    <input placeholder="Необязательно" value={resultForm.notes} onChange={e => setResultForm({ ...resultForm, notes: e.target.value })} className={input} />
+                  </div>
+                  <div className="md:col-span-2">
+                    <button type="submit" className={btn}>Добавить результат</button>
+                  </div>
+                </form>
+              </div>
+
+              {eventResults.length > 0 && (
+                <div className="border border-stone-200 rounded-2xl overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead className="bg-stone-50">
+                      <tr>
+                        {['Место', 'Команда', 'Счёт', 'Примечание'].map(h => (
+                          <th key={h} className="text-left px-4 py-3 font-medium text-stone-700">{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {eventResults.map((r: any) => (
+                        <tr key={r.id} className="border-t border-stone-100">
+                          <td className="px-4 py-3 text-stone-900">{r.rank || '—'}</td>
+                          <td className="px-4 py-3 text-stone-900">{eventTeams.find(t => t.id === r.team_id)?.name || '—'}</td>
+                          <td className="px-4 py-3 text-stone-700">{r.score || '—'}</td>
+                          <td className="px-4 py-3 text-stone-600">{r.notes || '—'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
+
+      {/* ── ВОПРОСЫ ── */}
+      {tab === 'questions' && (
+        <div className="space-y-5">
+          <h2 className="font-bold text-stone-900">Выберите мероприятие</h2>
+          {eventSelector(loadQuestionsData)}
+
+          {selectedEventId && (
+            <>
+              {/* Публикация результатов */}
+              <div className={`${card} flex items-center justify-between gap-4 flex-wrap`}>
+                <div>
+                  <h3 className="font-bold text-stone-900">Публикация результатов</h3>
+                  <p className="text-sm text-stone-500 mt-0.5">Команды увидят свои ответы и правильные ответы по всем КП</p>
+                  {publishMsg && <p className="text-sm text-green-700 mt-1">{publishMsg}</p>}
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={() => handlePublishResults(true)}
+                    className="bg-green-600 text-white px-4 py-2 rounded-xl hover:bg-green-700 font-medium text-sm transition-colors">
+                    ✓ Опубликовать результаты
+                  </button>
+                  <button onClick={() => handlePublishResults(false)}
+                    className="border border-stone-300 text-stone-600 px-4 py-2 rounded-xl hover:bg-stone-50 font-medium text-sm transition-colors">
+                    Скрыть
+                  </button>
+                </div>
+              </div>
+
+              {/* Импорт из Excel */}
+              <div className={card}>
+                <h3 className="font-bold text-stone-900 mb-1">Импорт из Excel</h3>
+                <p className="text-sm text-stone-500 mb-4">
+                  Шаг 1: загрузите файл <span className="font-medium text-stone-700">«все КП.xlsx»</span> — создаст вопросы.<br/>
+                  Шаг 2: загрузите файл <span className="font-medium text-stone-700">«результаты.xlsx»</span> — импортирует очки команд.<br/>
+                  <span className="text-orange-600">Внимание: названия команд в Excel должны точно совпадать с названиями в системе.</span>
+                </p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="border border-stone-200 rounded-xl p-4 space-y-2">
+                    <p className="text-sm font-semibold text-stone-800">📋 Шаг 1 — КП и ответы</p>
+                    <p className="text-xs text-stone-500">Файл «все КП.xlsx» (лист «Все КП»)</p>
+                    <label className="block">
+                      <span className={`inline-block cursor-pointer ${btnSm} ${importingKp ? 'opacity-50 pointer-events-none' : ''}`}>
+                        {importingKp ? 'Загрузка...' : '📂 Выбрать файл'}
+                        <input type="file" accept=".xlsx" className="hidden" disabled={importingKp}
+                          onChange={e => { const f = e.target.files?.[0]; if (f) handleImportKp(f); e.target.value = '' }} />
+                      </span>
+                    </label>
+                    {importKpMsg && (
+                      <p className={`text-sm ${importKpMsg.type === 'ok' ? 'text-green-700' : 'text-red-600'}`}>
+                        {importKpMsg.type === 'ok' ? '✓ ' : '✗ '}{importKpMsg.text}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="border border-stone-200 rounded-xl p-4 space-y-2">
+                    <p className="text-sm font-semibold text-stone-800">📊 Шаг 2 — Результаты команд</p>
+                    <p className="text-xs text-stone-500 mb-1">
+                      Вариант А: загрузите оригинальный файл (лист «проверка»).<br/>
+                      Вариант Б: скачайте шаблон с ID команд, заполните и загрузите.
+                    </p>
+                    <div className="flex gap-2 flex-wrap">
+                      <button onClick={handleDownloadTemplate} className={`${btnSm} bg-stone-600 hover:bg-stone-700`}>
+                        ⬇ Скачать шаблон
+                      </button>
+                      <label className="block">
+                        <span className={`inline-block cursor-pointer ${btnSm} ${importingRes ? 'opacity-50 pointer-events-none' : ''}`}>
+                          {importingRes ? 'Загрузка...' : '📂 Загрузить файл'}
+                          <input type="file" accept=".xlsx" className="hidden" disabled={importingRes}
+                            onChange={e => { const f = e.target.files?.[0]; if (f) handleImportResults(f); e.target.value = '' }} />
+                        </span>
+                      </label>
+                    </div>
+                    {importResMsg && (
+                      <p className={`text-sm ${importResMsg.type === 'ok' ? 'text-green-700' : 'text-orange-600'}`}>
+                        {importResMsg.type === 'ok' ? '✓ ' : '⚠ '}{importResMsg.text}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Добавить вопрос вручную */}
+              <div className={card}>
+                <h3 className="font-bold text-stone-900 mb-4">Добавить вопрос вручную</h3>
+                <form onSubmit={handleCreateQuestion} className="space-y-3">
+                  <div className="flex gap-3">
+                    <div className="w-24">
+                      <label className="block text-sm font-medium text-stone-700 mb-1">№</label>
+                      <input type="number" value={qForm.number} onChange={e => setQForm({ ...qForm, number: +e.target.value })} className={input} required />
+                    </div>
+                    <div className="flex-1">
+                      <label className="block text-sm font-medium text-stone-700 mb-1">Текст вопроса</label>
+                      <input value={qForm.text} onChange={e => setQForm({ ...qForm, text: e.target.value })} className={input} required />
+                    </div>
+                    <div className="w-28">
+                      <label className="block text-sm font-medium text-stone-700 mb-1">Очки</label>
+                      <input type="number" value={qForm.max_points} onChange={e => setQForm({ ...qForm, max_points: +e.target.value })} className={input} />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-stone-700 mb-1">Правильный ответ</label>
+                    <input value={qForm.correct_answer} onChange={e => setQForm({ ...qForm, correct_answer: e.target.value })} className={input} placeholder="Оставьте пустым если ещё неизвестен" />
+                  </div>
+                  <button type="submit" className={btn}>Добавить вопрос</button>
+                </form>
+              </div>
+
+              {/* Список вопросов и таблица очков */}
+              {questions.length > 0 && (
+                <div className="space-y-4">
+                  {/* Список вопросов — группировка по КП */}
+                  <div className={card}>
+                    <h3 className="font-bold text-stone-900 mb-3">Вопросы и ответы</h3>
+                    <div className="space-y-3">
+                      {(() => {
+                        // Группируем задания (number<100) и задачи (number>=100) по базовому номеру КП
+                        const kpMap: Record<number, { zadanie?: Question; zadacha?: Question }> = {}
+                        for (const q of questions) {
+                          const base = q.number < 100 ? q.number : q.number - 100
+                          if (!kpMap[base]) kpMap[base] = {}
+                          if (q.number < 100) kpMap[base].zadanie = q
+                          else kpMap[base].zadacha = q
+                        }
+                        return Object.entries(kpMap)
+                          .sort(([a], [b]) => +a - +b)
+                          .map(([baseStr, kp]) => {
+                            const base = +baseStr
+                            const meta = kpMeta(base)
+                            const anyQ = kp.zadanie || kp.zadacha!
+                            return (
+                              <div key={base} className={`border-2 rounded-xl overflow-hidden ${meta.border}`}>
+                                {/* Заголовок КП */}
+                                <div className={`px-3 py-2 flex items-center gap-2 ${meta.bg}`}>
+                                  <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${meta.badge}`}>
+                                    КП-{String(base).padStart(2,'0')}
+                                  </span>
+                                  <span className="text-xs text-stone-500 font-medium">{meta.label}</span>
+                                </div>
+
+                                {/* Задание */}
+                                {kp.zadanie && (() => {
+                                  const q = kp.zadanie!
+                                  return editingQ === q.id ? (
+                                    <div className="p-4 space-y-3 border-t border-stone-100">
+                                      <p className="text-xs font-semibold text-stone-500 uppercase">Задание</p>
+                                      <input value={editQForm.text} onChange={e => setEditQForm({...editQForm, text: e.target.value})} className={input} />
+                                      <input placeholder="Правильный ответ" value={editQForm.correct_answer} onChange={e => setEditQForm({...editQForm, correct_answer: e.target.value})} className={input} />
+                                      <div className="flex gap-3 items-center">
+                                        <input type="number" value={editQForm.max_points} onChange={e => setEditQForm({...editQForm, max_points: +e.target.value})} className={`${input} w-20`} />
+                                        <label className="flex items-center gap-2 text-sm text-stone-700 cursor-pointer">
+                                          <input type="checkbox" checked={editQForm.is_published} onChange={e => setEditQForm({...editQForm, is_published: e.target.checked})} />
+                                          Опубликовать
+                                        </label>
+                                      </div>
+                                      <div className="flex gap-2">
+                                        <button onClick={() => handleSaveQuestion(q.id)} className={btnSm}>Сохранить</button>
+                                        <button onClick={() => setEditingQ(null)} className="text-sm px-3 py-1.5 rounded-lg border border-stone-300 text-stone-600">Отмена</button>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <div className="px-4 py-3 border-t border-stone-100 flex items-start gap-3">
+                                      <div className="flex-1 min-w-0">
+                                        <p className="text-[10px] font-bold text-orange-600 uppercase tracking-wide mb-0.5">Задание</p>
+                                        <p className="text-sm text-stone-800">{q.text}</p>
+                                        {q.correct_answer && <p className="text-sm text-orange-600 font-semibold mt-0.5">✓ {q.correct_answer}</p>}
+                                        {q.image_filename && (
+                                          <img src={`${API_URL}/uploads/${q.image_filename}`} alt="" className="mt-2 max-h-28 rounded-lg border border-stone-200" />
+                                        )}
+                                      </div>
+                                      <div className="flex items-center gap-2 shrink-0">
+                                        {q.is_published
+                                          ? <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">✓ Опубл.</span>
+                                          : <span className="text-xs bg-stone-100 text-stone-500 px-2 py-0.5 rounded-full">Скрыт</span>
+                                        }
+                                        <label className="cursor-pointer text-xs text-stone-400 hover:text-orange-600" title="Загрузить фото">
+                                          📷
+                                          <input type="file" accept="image/*" className="hidden"
+                                            onChange={e => { const f = e.target.files?.[0]; if(f) handleQuestionImageUpload(q.id, f); e.target.value='' }} />
+                                        </label>
+                                        <button onClick={() => { setEditingQ(q.id); setEditQForm({text:q.text, correct_answer:q.correct_answer||'', max_points:q.max_points, is_published:q.is_published}) }}
+                                          className="text-xs text-orange-600 hover:text-orange-700 font-medium">Изм.</button>
+                                        <button onClick={() => handleDeleteQuestion(q.id)} className="text-xs text-red-400 hover:text-red-600">✕</button>
+                                      </div>
+                                    </div>
+                                  )
+                                })()}
+
+                                {/* Задача */}
+                                {kp.zadacha && (() => {
+                                  const q = kp.zadacha!
+                                  return editingQ === q.id ? (
+                                    <div className="p-4 space-y-3 bg-violet-50/50 border-t border-violet-100">
+                                      <p className="text-xs font-semibold text-violet-600 uppercase">Задача</p>
+                                      <textarea value={editQForm.text} onChange={e => setEditQForm({...editQForm, text: e.target.value})} rows={3} className={input} />
+                                      <input placeholder="Правильный ответ" value={editQForm.correct_answer} onChange={e => setEditQForm({...editQForm, correct_answer: e.target.value})} className={input} />
+                                      <div className="flex gap-3 items-center">
+                                        <input type="number" value={editQForm.max_points} onChange={e => setEditQForm({...editQForm, max_points: +e.target.value})} className={`${input} w-20`} />
+                                        <label className="flex items-center gap-2 text-sm text-stone-700 cursor-pointer">
+                                          <input type="checkbox" checked={editQForm.is_published} onChange={e => setEditQForm({...editQForm, is_published: e.target.checked})} />
+                                          Опубликовать
+                                        </label>
+                                      </div>
+                                      <div className="flex gap-2">
+                                        <button onClick={() => handleSaveQuestion(q.id)} className={btnSm}>Сохранить</button>
+                                        <button onClick={() => setEditingQ(null)} className="text-sm px-3 py-1.5 rounded-lg border border-stone-300 text-stone-600">Отмена</button>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <div className="px-4 py-3 bg-violet-50/40 border-t border-violet-100 flex items-start gap-3">
+                                      <div className="flex-1 min-w-0">
+                                        <p className="text-[10px] font-bold text-violet-600 uppercase tracking-wide mb-0.5">Задача</p>
+                                        <p className="text-sm text-stone-800">{q.text.replace(/^Задача: /,'')}</p>
+                                        {q.correct_answer && <p className="text-sm text-orange-600 font-semibold mt-0.5">✓ {q.correct_answer}</p>}
+                                        {q.image_filename && (
+                                          <img src={`${API_URL}/uploads/${q.image_filename}`} alt="" className="mt-2 max-h-28 rounded-lg border border-stone-200" />
+                                        )}
+                                      </div>
+                                      <div className="flex items-center gap-2 shrink-0">
+                                        {q.is_published
+                                          ? <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">✓ Опубл.</span>
+                                          : <span className="text-xs bg-stone-100 text-stone-500 px-2 py-0.5 rounded-full">Скрыт</span>
+                                        }
+                                        <label className="cursor-pointer text-xs text-stone-400 hover:text-orange-600" title="Загрузить фото">
+                                          📷
+                                          <input type="file" accept="image/*" className="hidden"
+                                            onChange={e => { const f = e.target.files?.[0]; if(f) handleQuestionImageUpload(q.id, f); e.target.value='' }} />
+                                        </label>
+                                        <button onClick={() => { setEditingQ(q.id); setEditQForm({text:q.text, correct_answer:q.correct_answer||'', max_points:q.max_points, is_published:q.is_published}) }}
+                                          className="text-xs text-orange-600 hover:text-orange-700 font-medium">Изм.</button>
+                                        <button onClick={() => handleDeleteQuestion(q.id)} className="text-xs text-red-400 hover:text-red-600">✕</button>
+                                      </div>
+                                    </div>
+                                  )
+                                })()}
+                              </div>
+                            )
+                          })
+                      })()}
+                    </div>
+                  </div>
+
+                  {/* Таблица очков команд */}
+                  {qTeams.length > 0 && (
+                    <div className={card}>
+                      <h3 className="font-bold text-stone-900 mb-3">Очки команд по вопросам</h3>
+                      <div className="overflow-x-auto">
+                        <table className="text-sm w-full">
+                          <thead className="bg-stone-50">
+                            <tr>
+                              <th className="text-left px-3 py-2 font-medium text-stone-700 whitespace-nowrap">Вопрос</th>
+                              {qTeams.map(t => (
+                                <th key={t.id} className="px-3 py-2 font-medium text-stone-700 whitespace-nowrap">{t.name}</th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {questions.map(q => (
+                              <tr key={q.id} className="border-t border-stone-100">
+                                <td className="px-3 py-2 text-stone-800 whitespace-nowrap">
+                                  #{q.number} <span className="text-stone-500 text-xs">({q.max_points} очк.)</span>
+                                </td>
+                                {qTeams.map(t => {
+                                  const key = `${q.id}|${t.id}`
+                                  const val = qResults[key] ?? 0
+                                  return (
+                                    <td key={t.id} className="px-2 py-1.5 text-center">
+                                      <input
+                                        type="number"
+                                        min={0}
+                                        max={q.max_points}
+                                        value={val}
+                                        onChange={e => handleSetPoints(q.id, t.id, +e.target.value)}
+                                        className="w-16 border border-stone-300 rounded-lg px-2 py-1 text-center text-stone-900 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 bg-white"
+                                      />
+                                    </td>
+                                  )
+                                })}
+                              </tr>
+                            ))}
+                            {/* Итого */}
+                            <tr className="border-t-2 border-stone-300 bg-stone-50 font-bold">
+                              <td className="px-3 py-2 text-stone-900">Итого</td>
+                              {qTeams.map(t => {
+                                const total = questions.reduce((sum, q) => sum + (qResults[`${q.id}|${t.id}`] ?? 0), 0)
+                                const max = questions.reduce((sum, q) => sum + q.max_points, 0)
+                                return (
+                                  <td key={t.id} className="px-3 py-2 text-center text-stone-900">{total}<span className="text-stone-400 font-normal">/{max}</span></td>
+                                )
+                              })}
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
+
+      {/* ── СТРАНИЦА «О ПРОЕКТЕ» ── */}
+      {tab === 'info' && (
+        <div className="space-y-5">
+          <p className="text-sm text-stone-500">
+            Содержимое страницы <span className="font-medium text-stone-700">/info</span> — правила, информация об организаторах и т.д. Поддерживаются переносы строк.
+          </p>
+          <div className={card}>
+            {!infoLoaded
+              ? <button className={btn} onClick={loadInfoPage}>Загрузить страницу</button>
+              : (
+                <form onSubmit={handleSaveInfo} className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-stone-700 mb-1">Заголовок</label>
+                    <input value={infoForm.title} onChange={e => setInfoForm({ ...infoForm, title: e.target.value })} className={input} required />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-stone-700 mb-1">Содержимое</label>
+                    <textarea
+                      value={infoForm.content}
+                      onChange={e => setInfoForm({ ...infoForm, content: e.target.value })}
+                      rows={20}
+                      className={`${input} font-mono text-sm`}
+                      placeholder="Введите правила, контакты организаторов..."
+                    />
+                  </div>
+                  <label className="flex items-center gap-2 text-sm text-stone-700 cursor-pointer">
+                    <input type="checkbox" checked={infoForm.is_published} onChange={e => setInfoForm({ ...infoForm, is_published: e.target.checked })} />
+                    Опубликовано
+                  </label>
+                  {infoMsg && <p className={`text-sm ${infoMsg === 'Сохранено' ? 'text-green-700' : 'text-red-600'}`}>{infoMsg}</p>}
+                  <button type="submit" className={btn}>Сохранить</button>
+                </form>
+              )
+            }
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
