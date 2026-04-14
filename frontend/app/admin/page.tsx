@@ -34,7 +34,13 @@ export default function AdminPage() {
 
   const [events, setEvents] = useState<Event[]>([])
   const [posts, setPosts] = useState<Post[]>([])
-  const [tab, setTab] = useState<'events' | 'posts' | 'teams' | 'results' | 'questions' | 'info'>('events')
+  const [tab, setTab] = useState<'events' | 'posts' | 'teams' | 'results' | 'questions' | 'info' | 'users'>('events')
+
+  // Пользователи
+  interface AdminUser { id: string; email: string; full_name: string; role: string; is_verified: boolean; created_at: string }
+  const [users, setUsers] = useState<AdminUser[]>([])
+  const [usersLoaded, setUsersLoaded] = useState(false)
+  const [userRoleMsg, setUserRoleMsg] = useState('')
 
   const [eventForm, setEventForm] = useState({ title: '', description: '', starts_at: '', ends_at: '', reg_deadline: '', min_team_size: 2, max_team_size: 5 })
   const [postForm, setPostForm] = useState({ title: '', content: '', is_published: false })
@@ -249,6 +255,24 @@ export default function AdminPage() {
     } finally { setImportingKp(false) }
   }
 
+  async function loadUsers() {
+    const res = await api.get('/admin/users')
+    setUsers(res.data)
+    setUsersLoaded(true)
+  }
+
+  async function handleSetRole(userId: string, role: string) {
+    setUserRoleMsg('')
+    try {
+      await api.patch(`/admin/users/${userId}/role`, { role })
+      setUsers(users.map(u => u.id === userId ? { ...u, role } : u))
+      setUserRoleMsg('Сохранено')
+      setTimeout(() => setUserRoleMsg(''), 2000)
+    } catch (e: any) {
+      setUserRoleMsg(e?.response?.data?.detail || 'Ошибка')
+    }
+  }
+
   async function handleImportResults(file: File) {
     if (!selectedEventId) return
     setImportingRes(true); setImportResMsg(null)
@@ -279,6 +303,7 @@ export default function AdminPage() {
     { key: 'results', label: '🏆 Результаты' },
     { key: 'questions', label: '❓ Вопросы' },
     { key: 'info', label: '📄 Страница' },
+    { key: 'users', label: '👤 Пользователи' },
   ] as const
 
   const eventSelector = (onSelect: (id: string) => void) => (
@@ -877,6 +902,58 @@ export default function AdminPage() {
       )}
 
       {/* ── СТРАНИЦА «О ПРОЕКТЕ» ── */}
+      {tab === 'users' && (
+        <div className="space-y-5">
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-stone-500">Управление ролями. Роль <span className="font-semibold text-orange-600">admin</span> даёт полный доступ к этой панели.</p>
+            {!usersLoaded
+              ? <button className={btn} onClick={loadUsers}>Загрузить список</button>
+              : <button className="text-sm text-stone-500 hover:text-stone-700" onClick={loadUsers}>↻ Обновить</button>
+            }
+          </div>
+          {userRoleMsg && <p className="text-sm text-green-700 font-medium">{userRoleMsg}</p>}
+          {usersLoaded && (
+            <div className={card + ' p-0 overflow-hidden'}>
+              <table className="w-full text-sm">
+                <thead className="bg-stone-50 border-b border-stone-200">
+                  <tr>
+                    <th className="text-left px-4 py-3 font-semibold text-stone-700">Имя</th>
+                    <th className="text-left px-4 py-3 font-semibold text-stone-700">Email</th>
+                    <th className="text-left px-4 py-3 font-semibold text-stone-700">Email подтверждён</th>
+                    <th className="text-left px-4 py-3 font-semibold text-stone-700">Роль</th>
+                    <th className="px-4 py-3"></th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-stone-100">
+                  {users.map(u => (
+                    <tr key={u.id} className="hover:bg-stone-50">
+                      <td className="px-4 py-3 text-stone-900 font-medium">{u.full_name}</td>
+                      <td className="px-4 py-3 text-stone-600">{u.email}</td>
+                      <td className="px-4 py-3">
+                        {u.is_verified
+                          ? <span className="text-green-700 font-medium">✓ Да</span>
+                          : <span className="text-stone-400">Нет</span>}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-bold ${u.role === 'admin' ? 'bg-orange-100 text-orange-700' : 'bg-stone-100 text-stone-600'}`}>
+                          {u.role}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        {u.role === 'admin'
+                          ? <button onClick={() => handleSetRole(u.id, 'user')} className="text-xs text-red-500 hover:text-red-700 font-medium">Снять админа</button>
+                          : <button onClick={() => handleSetRole(u.id, 'admin')} className="text-xs text-orange-600 hover:text-orange-800 font-medium">Сделать админом</button>
+                        }
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
       {tab === 'info' && (
         <div className="space-y-5">
           <p className="text-sm text-stone-500">

@@ -889,3 +889,37 @@ def unpublish_results(event_id: UUID, db: Session = Depends(get_db), admin=Depen
     updated = db.query(EventQuestion).filter(EventQuestion.event_id == event_id).update({"is_published": False})
     db.commit()
     return {"unpublished": updated}
+
+
+# --- Управление пользователями ---
+
+@router.get("/users")
+def list_users(db: Session = Depends(get_db), admin=Depends(get_current_admin)):
+    from models.user import User
+    users = db.query(User).order_by(User.created_at.desc()).all()
+    return [
+        {
+            "id": str(u.id),
+            "email": u.email,
+            "full_name": u.full_name,
+            "role": u.role,
+            "is_verified": u.is_verified,
+            "created_at": u.created_at.isoformat() if u.created_at else None,
+        }
+        for u in users
+    ]
+
+@router.patch("/users/{user_id}/role")
+def set_user_role(user_id: UUID, data: dict, db: Session = Depends(get_db), admin=Depends(get_current_admin)):
+    from models.user import User
+    role = data.get("role")
+    if role not in ("user", "admin"):
+        raise HTTPException(400, "Роль должна быть 'user' или 'admin'")
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(404, "Пользователь не найден")
+    if str(user.id) == str(admin.id):
+        raise HTTPException(400, "Нельзя изменить свою роль")
+    user.role = role
+    db.commit()
+    return {"id": str(user.id), "email": user.email, "role": user.role}
