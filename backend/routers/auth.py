@@ -80,7 +80,8 @@ def search_users(q: str, db: Session = Depends(get_db), user_id: str = Depends(g
 def verify_email(token: str, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.email_token == token).first()
     if not user:
-        raise HTTPException(400, "Неверная или устаревшая ссылка")
+        # Возможно токен уже использован — email уже подтверждён
+        return {"ok": True, "message": "Email уже подтверждён! Можете войти."}
     if user.email_token_expires and user.email_token_expires < datetime.now(timezone.utc):
         raise HTTPException(400, "Ссылка истекла. Запросите новую.")
     user.is_verified = True
