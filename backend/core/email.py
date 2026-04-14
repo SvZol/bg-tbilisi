@@ -28,11 +28,18 @@ def send_email(to: str, subject: str, html: str):
     msg["To"] = to
     msg.attach(MIMEText(html, "html", "utf-8"))
 
-    with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as smtp:
-        smtp.ehlo()
-        smtp.starttls()
-        smtp.login(SMTP_USER, SMTP_PASS)
-        smtp.sendmail(FROM_EMAIL, to, msg.as_string())
+    if SMTP_PORT == 465:
+        import ssl
+        ctx = ssl.create_default_context()
+        with smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT, context=ctx) as smtp:
+            smtp.login(SMTP_USER, SMTP_PASS)
+            smtp.sendmail(FROM_EMAIL, to, msg.as_string())
+    else:
+        with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as smtp:
+            smtp.ehlo()
+            smtp.starttls()
+            smtp.login(SMTP_USER, SMTP_PASS)
+            smtp.sendmail(FROM_EMAIL, to, msg.as_string())
 
 
 def send_verification_email(to: str, token: str):
