@@ -40,7 +40,6 @@ export default function AdminPage() {
   interface AdminUser { id: string; email: string; full_name: string; role: string; is_verified: boolean; created_at: string }
   const [users, setUsers] = useState<AdminUser[]>([])
   const [usersLoaded, setUsersLoaded] = useState(false)
-  const [userRoleMsg, setUserRoleMsg] = useState('')
 
   const [eventForm, setEventForm] = useState({ title: '', description: '', starts_at: '', ends_at: '', reg_deadline: '', min_team_size: 2, max_team_size: 5 })
   const [postForm, setPostForm] = useState({ title: '', content: '', is_published: false })
@@ -259,18 +258,6 @@ export default function AdminPage() {
     const res = await api.get('/admin/users')
     setUsers(res.data)
     setUsersLoaded(true)
-  }
-
-  async function handleSetRole(userId: string, role: string) {
-    setUserRoleMsg('')
-    try {
-      await api.patch(`/admin/users/${userId}/role`, { role })
-      setUsers(users.map(u => u.id === userId ? { ...u, role } : u))
-      setUserRoleMsg('Сохранено')
-      setTimeout(() => setUserRoleMsg(''), 2000)
-    } catch (e: any) {
-      setUserRoleMsg(e?.response?.data?.detail || 'Ошибка')
-    }
   }
 
   async function handleImportResults(file: File) {
@@ -911,7 +898,6 @@ export default function AdminPage() {
               : <button className="text-sm text-stone-500 hover:text-stone-700" onClick={loadUsers}>↻ Обновить</button>
             }
           </div>
-          {userRoleMsg && <p className="text-sm text-green-700 font-medium">{userRoleMsg}</p>}
           {usersLoaded && (
             <div className={card + ' p-0 overflow-hidden'}>
               <table className="w-full text-sm">
@@ -939,11 +925,8 @@ export default function AdminPage() {
                           {u.role}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-right">
-                        {u.role === 'admin'
-                          ? <button onClick={() => handleSetRole(u.id, 'user')} className="text-xs text-red-500 hover:text-red-700 font-medium">Снять админа</button>
-                          : <button onClick={() => handleSetRole(u.id, 'admin')} className="text-xs text-orange-600 hover:text-orange-800 font-medium">Сделать админом</button>
-                        }
+                      <td className="px-4 py-3 text-right text-xs text-stone-400">
+                        {new Date(u.created_at).toLocaleDateString('ru-RU')}
                       </td>
                     </tr>
                   ))}
