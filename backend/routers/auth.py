@@ -1,6 +1,6 @@
 import secrets
 from datetime import datetime, timedelta, timezone
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from sqlalchemy.orm import Session
 from database import get_db
 from models.user import User
@@ -15,8 +15,16 @@ def _make_token() -> str:
     return secrets.token_urlsafe(32)
 
 
+def _send_safe(fn, *args):
+    """Обёртка для фоновой отправки email — ошибки не роняют запрос."""
+    try:
+        fn(*args)
+    except Exception as e:
+        print(f"[EMAIL ERROR] {e}")
+
+
 @router.post("/register", response_model=UserOut)
-def register(data: UserRegister, db: Session = Depends(get_db)):
+def register(data: UserRegister, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     existing = db.query(User).filter(User.email == data.email).first()
     if existing:
         raise HTTPException(status_code=400, detail="Email уже используется")
@@ -36,10 +44,7 @@ def register(data: UserRegister, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(user)
 
-    try:
-        send_verification_email(user.email, token)
-    except Exception as e:
-        print(f"[EMAIL ERROR] {e}")
+    background_tasks.add_task(_send_safe, send_verification_email, user.email, token)
 
     return user
 
@@ -86,10 +91,9 @@ def verify_email(token: str, db: Session = Depends(get_db)):
 
 
 @router.post("/resend-verification")
-def resend_verification(email: str, db: Session = Depends(get_db)):
+def resend_verification(email: str, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.email == email).first()
     if not user:
-        # Не раскрываем, существует ли пользователь
         return {"ok": True}
     if user.is_verified:
         return {"ok": True, "message": "Email уже подтверждён"}
@@ -99,10 +103,7 @@ def resend_verification(email: str, db: Session = Depends(get_db)):
     user.email_token_expires = datetime.now(timezone.utc) + timedelta(hours=24)
     db.commit()
 
-    try:
-        send_verification_email(user.email, token)
-    except Exception as e:
-        print(f"[EMAIL ERROR] {e}")
+    background_tasks.add_task(_send_safe, send_verification_email, user.email, token)
 
     return {"ok": True}
 
@@ -110,18 +111,14 @@ def resend_verification(email: str, db: Session = Depends(get_db)):
 # --- Сброс пароля ---
 
 @router.post("/forgot-password")
-def forgot_password(email: str, db: Session = Depends(get_db)):
+def forgot_password(email: str, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.email == email).first()
     if user:
         token = _make_token()
         user.reset_token = token
         user.reset_token_expires = datetime.now(timezone.utc) + timedelta(hours=1)
         db.commit()
-        try:
-            send_reset_email(user.email, token)
-        except Exception as e:
-            print(f"[EMAIL ERROR] {e}")
-    # Всегда возвращаем одинаковый ответ (не раскрываем, есть ли такой email)
+        background_tasks.add_task(_send_safe, send_reset_email, user.email, token)
     return {"ok": True, "message": "Если такой email зарегистрирован, письмо отправлено"}
 
 
