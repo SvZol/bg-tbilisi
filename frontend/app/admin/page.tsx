@@ -10,9 +10,9 @@ interface TeamMember { id: string; user_id: string | null; guest_name: string | 
 interface Team { id: string; name: string; status: string; category: string; members: TeamMember[] }
 interface Question { id: string; number: number; text: string; correct_answer: string | null; max_points: number; is_published: boolean; image_filename?: string | null }
 
-const input = "w-full border border-stone-300 rounded-xl px-3 py-2 text-stone-900 focus:outline-none focus:ring-2 focus:ring-orange-400 bg-white"
-const btn = "bg-orange-500 text-white px-5 py-2 rounded-xl hover:bg-orange-600 font-medium transition-colors"
-const btnSm = "text-sm bg-orange-500 text-white px-3 py-1.5 rounded-lg hover:bg-orange-600 font-medium transition-colors"
+const input = "w-full border border-stone-300 rounded-xl px-3 py-2 text-stone-900 focus:outline-none focus:ring-2 focus:ring-red-400 bg-white"
+const btn = "bg-red-600 text-white px-5 py-2 rounded-xl hover:bg-red-700 font-medium transition-colors"
+const btnSm = "text-sm bg-red-600 text-white px-3 py-1.5 rounded-lg hover:bg-red-700 font-medium transition-colors"
 const card = "bg-white border border-stone-200 rounded-2xl p-5"
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
@@ -21,7 +21,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 function kpMeta(num: number) {
   const b = num < 100 ? num : num - 100
   if (b === 0)           return { border: 'border-yellow-400', bg: 'bg-yellow-50',  badge: 'bg-yellow-400 text-yellow-900',  label: 'Старт' }
-  if (b >= 1 && b <= 19) return { border: 'border-orange-400', bg: 'bg-orange-50',  badge: 'bg-orange-500 text-white',        label: 'КП' }
+  if (b >= 1 && b <= 19) return { border: 'border-red-400', bg: 'bg-red-50',  badge: 'bg-red-600 text-white',        label: 'КП' }
   if (b >= 21 && b <= 29)return { border: 'border-blue-400',   bg: 'bg-blue-50',    badge: 'bg-blue-500 text-white',          label: 'КП↕' }
   if (b >= 31 && b <= 39)return { border: 'border-green-500',  bg: 'bg-green-50',   badge: 'bg-green-600 text-white',         label: 'ФотоКП' }
   if (b === 99)          return { border: 'border-yellow-400', bg: 'bg-yellow-50',  badge: 'bg-yellow-400 text-yellow-900',   label: 'Финиш' }
@@ -301,8 +301,8 @@ export default function AdminPage() {
           onClick={() => onSelect(ev.id)}
           className={`px-4 py-2 rounded-xl text-sm font-medium border transition-colors ${
             selectedEventId === ev.id
-              ? 'bg-orange-500 text-white border-orange-500'
-              : 'border-stone-300 text-stone-700 hover:border-orange-400 bg-white'
+              ? 'bg-red-600 text-white border-red-600'
+              : 'border-stone-300 text-stone-700 hover:border-red-400 bg-white'
           }`}
         >
           {ev.title}
@@ -323,7 +323,7 @@ export default function AdminPage() {
             onClick={() => setTab(t.key)}
             className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
               tab === t.key
-                ? 'border-orange-500 text-orange-600'
+                ? 'border-red-600 text-red-700'
                 : 'border-transparent text-stone-500 hover:text-stone-800'
             }`}
           >
@@ -385,7 +385,7 @@ export default function AdminPage() {
                     <p className="text-sm text-stone-500">{new Date(ev.starts_at).toLocaleDateString('ru-RU')}</p>
                   </div>
                   <select value={ev.status} onChange={e => changeEventStatus(ev.id, e.target.value)}
-                    className="text-sm border border-stone-300 rounded-xl px-3 py-1.5 text-stone-800 bg-white focus:outline-none focus:ring-2 focus:ring-orange-400">
+                    className="text-sm border border-stone-300 rounded-xl px-3 py-1.5 text-stone-800 bg-white focus:outline-none focus:ring-2 focus:ring-red-400">
                     <option value="open">Открыто</option>
                     <option value="closed">Закрыто</option>
                     <option value="finished">Завершено</option>
@@ -439,7 +439,7 @@ export default function AdminPage() {
                     {post.image_filename && (
                       <img src={`${API_URL}/uploads/${post.image_filename}`} alt="" className="h-16 w-24 object-cover rounded-xl border border-stone-200" />
                     )}
-                    <label className="cursor-pointer text-sm text-orange-600 hover:text-orange-700 font-medium">
+                    <label className="cursor-pointer text-sm text-red-700 hover:text-red-800 font-medium">
                       {uploadingPostId === post.id ? 'Загрузка...' : post.image_filename ? '🔄 Заменить фото' : '📷 Добавить фото'}
                       <input type="file" accept="image/*" className="hidden" disabled={uploadingPostId === post.id}
                         onChange={e => { const f = e.target.files?.[0]; if (f) handlePostImageUpload(post.id, f); e.target.value = '' }} />
@@ -471,7 +471,7 @@ export default function AdminPage() {
                         onChange={e => changeTeamCategory(team.id, e.target.value)}
                         className={`text-xs font-semibold px-2 py-1 rounded-full border cursor-pointer focus:outline-none transition-colors ${
                           (team.category || 'child') === 'adult'
-                            ? 'bg-orange-50 border-orange-300 text-orange-700'
+                            ? 'bg-red-50 border-red-300 text-red-800'
                             : 'bg-violet-50 border-violet-300 text-violet-700'
                         }`}
                       >
@@ -479,7 +479,7 @@ export default function AdminPage() {
                         <option value="adult">🧑 Взрослый</option>
                       </select>
                       <a href={`/teams/${team.id}/results`} target="_blank" rel="noreferrer"
-                        className="text-xs text-orange-600 hover:text-orange-700 font-medium border border-orange-200 px-2 py-0.5 rounded-lg">
+                        className="text-xs text-red-700 hover:text-red-800 font-medium border border-red-200 px-2 py-0.5 rounded-lg">
                         Результаты ↗
                       </a>
                     </div>
@@ -620,7 +620,7 @@ export default function AdminPage() {
                 <p className="text-sm text-stone-500 mb-4">
                   Шаг 1: загрузите файл <span className="font-medium text-stone-700">«все КП.xlsx»</span> — создаст вопросы.<br/>
                   Шаг 2: загрузите файл <span className="font-medium text-stone-700">«результаты.xlsx»</span> — импортирует очки команд.<br/>
-                  <span className="text-orange-600">Внимание: названия команд в Excel должны точно совпадать с названиями в системе.</span>
+                  <span className="text-red-700">Внимание: названия команд в Excel должны точно совпадать с названиями в системе.</span>
                 </p>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="border border-stone-200 rounded-xl p-4 space-y-2">
@@ -659,7 +659,7 @@ export default function AdminPage() {
                       </label>
                     </div>
                     {importResMsg && (
-                      <p className={`text-sm ${importResMsg.type === 'ok' ? 'text-green-700' : 'text-orange-600'}`}>
+                      <p className={`text-sm ${importResMsg.type === 'ok' ? 'text-green-700' : 'text-red-700'}`}>
                         {importResMsg.type === 'ok' ? '✓ ' : '⚠ '}{importResMsg.text}
                       </p>
                     )}
@@ -748,9 +748,9 @@ export default function AdminPage() {
                                   ) : (
                                     <div className="px-4 py-3 border-t border-stone-100 flex items-start gap-3">
                                       <div className="flex-1 min-w-0">
-                                        <p className="text-[10px] font-bold text-orange-600 uppercase tracking-wide mb-0.5">Задание</p>
+                                        <p className="text-[10px] font-bold text-red-700 uppercase tracking-wide mb-0.5">Задание</p>
                                         <p className="text-sm text-stone-800">{q.text}</p>
-                                        {q.correct_answer && <p className="text-sm text-orange-600 font-semibold mt-0.5">✓ {q.correct_answer}</p>}
+                                        {q.correct_answer && <p className="text-sm text-red-700 font-semibold mt-0.5">✓ {q.correct_answer}</p>}
                                         {q.image_filename && (
                                           <img src={`${API_URL}/uploads/${q.image_filename}`} alt="" className="mt-2 max-h-28 rounded-lg border border-stone-200" />
                                         )}
@@ -760,13 +760,13 @@ export default function AdminPage() {
                                           ? <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">✓ Опубл.</span>
                                           : <span className="text-xs bg-stone-100 text-stone-500 px-2 py-0.5 rounded-full">Скрыт</span>
                                         }
-                                        <label className="cursor-pointer text-xs text-stone-400 hover:text-orange-600" title="Загрузить фото">
+                                        <label className="cursor-pointer text-xs text-stone-400 hover:text-red-700" title="Загрузить фото">
                                           📷
                                           <input type="file" accept="image/*" className="hidden"
                                             onChange={e => { const f = e.target.files?.[0]; if(f) handleQuestionImageUpload(q.id, f); e.target.value='' }} />
                                         </label>
                                         <button onClick={() => { setEditingQ(q.id); setEditQForm({text:q.text, correct_answer:q.correct_answer||'', max_points:q.max_points, is_published:q.is_published}) }}
-                                          className="text-xs text-orange-600 hover:text-orange-700 font-medium">Изм.</button>
+                                          className="text-xs text-red-700 hover:text-red-800 font-medium">Изм.</button>
                                         <button onClick={() => handleDeleteQuestion(q.id)} className="text-xs text-red-400 hover:text-red-600">✕</button>
                                       </div>
                                     </div>
@@ -798,7 +798,7 @@ export default function AdminPage() {
                                       <div className="flex-1 min-w-0">
                                         <p className="text-[10px] font-bold text-violet-600 uppercase tracking-wide mb-0.5">Задача</p>
                                         <p className="text-sm text-stone-800">{q.text.replace(/^Задача: /,'')}</p>
-                                        {q.correct_answer && <p className="text-sm text-orange-600 font-semibold mt-0.5">✓ {q.correct_answer}</p>}
+                                        {q.correct_answer && <p className="text-sm text-red-700 font-semibold mt-0.5">✓ {q.correct_answer}</p>}
                                         {q.image_filename && (
                                           <img src={`${API_URL}/uploads/${q.image_filename}`} alt="" className="mt-2 max-h-28 rounded-lg border border-stone-200" />
                                         )}
@@ -808,13 +808,13 @@ export default function AdminPage() {
                                           ? <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">✓ Опубл.</span>
                                           : <span className="text-xs bg-stone-100 text-stone-500 px-2 py-0.5 rounded-full">Скрыт</span>
                                         }
-                                        <label className="cursor-pointer text-xs text-stone-400 hover:text-orange-600" title="Загрузить фото">
+                                        <label className="cursor-pointer text-xs text-stone-400 hover:text-red-700" title="Загрузить фото">
                                           📷
                                           <input type="file" accept="image/*" className="hidden"
                                             onChange={e => { const f = e.target.files?.[0]; if(f) handleQuestionImageUpload(q.id, f); e.target.value='' }} />
                                         </label>
                                         <button onClick={() => { setEditingQ(q.id); setEditQForm({text:q.text, correct_answer:q.correct_answer||'', max_points:q.max_points, is_published:q.is_published}) }}
-                                          className="text-xs text-orange-600 hover:text-orange-700 font-medium">Изм.</button>
+                                          className="text-xs text-red-700 hover:text-red-800 font-medium">Изм.</button>
                                         <button onClick={() => handleDeleteQuestion(q.id)} className="text-xs text-red-400 hover:text-red-600">✕</button>
                                       </div>
                                     </div>
@@ -858,7 +858,7 @@ export default function AdminPage() {
                                         max={q.max_points}
                                         value={val}
                                         onChange={e => handleSetPoints(q.id, t.id, +e.target.value)}
-                                        className="w-16 border border-stone-300 rounded-lg px-2 py-1 text-center text-stone-900 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 bg-white"
+                                        className="w-16 border border-stone-300 rounded-lg px-2 py-1 text-center text-stone-900 text-sm focus:outline-none focus:ring-2 focus:ring-red-400 bg-white"
                                       />
                                     </td>
                                   )
@@ -892,7 +892,7 @@ export default function AdminPage() {
       {tab === 'users' && (
         <div className="space-y-5">
           <div className="flex items-center justify-between">
-            <p className="text-sm text-stone-500">Управление ролями. Роль <span className="font-semibold text-orange-600">admin</span> даёт полный доступ к этой панели.</p>
+            <p className="text-sm text-stone-500">Управление ролями. Роль <span className="font-semibold text-red-700">admin</span> даёт полный доступ к этой панели.</p>
             {!usersLoaded
               ? <button className={btn} onClick={loadUsers}>Загрузить список</button>
               : <button className="text-sm text-stone-500 hover:text-stone-700" onClick={loadUsers}>↻ Обновить</button>
@@ -921,7 +921,7 @@ export default function AdminPage() {
                           : <span className="text-stone-400">Нет</span>}
                       </td>
                       <td className="px-4 py-3">
-                        <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-bold ${u.role === 'admin' ? 'bg-orange-100 text-orange-700' : 'bg-stone-100 text-stone-600'}`}>
+                        <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-bold ${u.role === 'admin' ? 'bg-red-100 text-red-800' : 'bg-stone-100 text-stone-600'}`}>
                           {u.role}
                         </span>
                       </td>

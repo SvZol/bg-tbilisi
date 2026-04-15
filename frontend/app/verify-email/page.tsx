@@ -31,7 +31,7 @@ function VerifyEmailContent() {
           <h1 className="text-2xl font-extrabold text-stone-900 mb-2">Готово!</h1>
           <p className="text-stone-600 mb-6">{message}</p>
           <Link href="/login"
-            className="bg-orange-500 text-white px-8 py-2.5 rounded-xl hover:bg-orange-600 font-bold transition-colors">
+            className="bg-red-600 text-white px-8 py-2.5 rounded-xl hover:bg-red-700 font-bold transition-colors">
             Войти
           </Link>
         </>
@@ -42,7 +42,7 @@ function VerifyEmailContent() {
           <h1 className="text-2xl font-extrabold text-stone-900 mb-2">Ошибка</h1>
           <p className="text-stone-600 mb-6">{message}</p>
           <Link href="/login"
-            className="text-orange-600 hover:text-orange-700 font-medium">
+            className="text-red-700 hover:text-red-800 font-medium">
             На страницу входа
           </Link>
         </>

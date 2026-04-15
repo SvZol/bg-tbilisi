@@ -4,7 +4,7 @@ import { useSearchParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import api from '@/lib/api'
 
-const input = "w-full border border-stone-300 rounded-xl px-3 py-2.5 text-stone-900 focus:outline-none focus:ring-2 focus:ring-orange-400 bg-white"
+const input = "w-full border border-stone-300 rounded-xl px-3 py-2.5 text-stone-900 focus:outline-none focus:ring-2 focus:ring-red-400 bg-white"
 
 function ResetPasswordForm() {
   const params = useSearchParams()
@@ -39,7 +39,7 @@ function ResetPasswordForm() {
       <div className="bg-white border border-stone-200 rounded-2xl p-10 text-center">
         <div className="text-4xl mb-4">❌</div>
         <p className="text-stone-600 mb-4">Неверная ссылка для сброса пароля.</p>
-        <Link href="/forgot-password" className="text-orange-600 hover:text-orange-700 font-medium">
+        <Link href="/forgot-password" className="text-red-700 hover:text-red-800 font-medium">
           Запросить новую ссылку
         </Link>
       </div>
@@ -70,7 +70,7 @@ function ResetPasswordForm() {
           </div>
           {error && <p className="text-red-500 text-sm">{error}</p>}
           <button type="submit" disabled={loading}
-            className="w-full bg-orange-500 text-white py-2.5 rounded-xl hover:bg-orange-600 font-bold disabled:opacity-50 transition-colors">
+            className="w-full bg-red-600 text-white py-2.5 rounded-xl hover:bg-red-700 font-bold disabled:opacity-50 transition-colors">
             {loading ? 'Сохраняем...' : 'Сохранить пароль'}
           </button>
         </form>

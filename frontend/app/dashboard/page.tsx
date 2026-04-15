@@ -35,7 +35,7 @@ function CategoryToggle({ teamId, value, onChange }: {
       title="Нажмите чтобы изменить зачёт"
       className={`flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full border transition-colors ${
         isAdult
-          ? 'bg-orange-50 border-orange-300 text-orange-700 hover:bg-orange-100'
+          ? 'bg-red-50 border-red-300 text-red-800 hover:bg-red-100'
           : 'bg-violet-50 border-violet-300 text-violet-700 hover:bg-violet-100'
       } ${saving ? 'opacity-50 cursor-wait' : 'cursor-pointer'}`}
     >
@@ -73,7 +73,7 @@ function TeamCard({ teamWithEvent, isCaptain, onCategoryChange }: {
             ) : (
               <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
                 (team.category || 'child') === 'adult'
-                  ? 'bg-orange-50 text-orange-600'
+                  ? 'bg-red-50 text-red-700'
                   : 'bg-violet-50 text-violet-600'
               }`}>
                 {(team.category || 'child') === 'adult' ? '🧑 Взрослый' : '🧒 Детский'}
@@ -81,7 +81,7 @@ function TeamCard({ teamWithEvent, isCaptain, onCategoryChange }: {
             )}
           </div>
           {event && (
-            <Link href={`/events/${event.id}`} className="text-sm text-orange-600 hover:text-orange-700">
+            <Link href={`/events/${event.id}`} className="text-sm text-red-700 hover:text-red-800">
               {event.title}
             </Link>
           )}
@@ -89,12 +89,12 @@ function TeamCard({ teamWithEvent, isCaptain, onCategoryChange }: {
         <div className="shrink-0">
           {finished ? (
             <Link href={`/teams/${team.id}/results`}
-              className="text-sm bg-orange-500 text-white px-3 py-1.5 rounded-xl hover:bg-orange-600 font-medium transition-colors">
+              className="text-sm bg-red-600 text-white px-3 py-1.5 rounded-xl hover:bg-red-700 font-medium transition-colors">
               Мои результаты →
             </Link>
           ) : isCaptain ? (
             <Link href={`/teams/${team.id}/edit`}
-              className="text-sm text-orange-600 hover:text-orange-700 font-medium">
+              className="text-sm text-red-700 hover:text-red-800 font-medium">
               Редактировать →
             </Link>
           ) : null}
@@ -175,7 +175,7 @@ export default function DashboardPage() {
         {captainTeams.length === 0 ? (
           <div className="border-2 border-dashed border-stone-200 rounded-2xl p-8 text-center text-stone-500">
             Вы ещё не создавали команды.{' '}
-            <Link href="/events" className="text-orange-600 hover:text-orange-700 font-medium">Найти мероприятие</Link>
+            <Link href="/events" className="text-red-700 hover:text-red-800 font-medium">Найти мероприятие</Link>
           </div>
         ) : (
           <div className="space-y-4">

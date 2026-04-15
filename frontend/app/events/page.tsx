@@ -33,10 +33,10 @@ export default function EventsPage() {
     return (
       <Link
         href={`/events/${ev.id}`}
-        className="group bg-white border border-stone-200 rounded-2xl p-6 hover:border-orange-300 hover:shadow-md transition-all"
+        className="group bg-white border border-stone-200 rounded-2xl p-6 hover:border-red-300 hover:shadow-md transition-all"
       >
         <div className="text-2xl mb-3">🗺️</div>
-        <h2 className="font-bold text-stone-900 text-xl mb-2 group-hover:text-orange-600 transition-colors">{ev.title}</h2>
+        <h2 className="font-bold text-stone-900 text-xl mb-2 group-hover:text-red-700 transition-colors">{ev.title}</h2>
         <p className="text-stone-500 text-sm mb-4 line-clamp-2">{ev.description}</p>
         <div className="text-sm text-stone-500 space-y-1">
           <p>📅 {new Date(ev.starts_at).toLocaleDateString('ru-RU')} — {new Date(ev.ends_at).toLocaleDateString('ru-RU')}</p>

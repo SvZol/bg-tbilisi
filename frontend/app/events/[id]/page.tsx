@@ -21,14 +21,14 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 function kpMeta(num: number) {
   const b = num < 100 ? num : num - 100
   if (b === 0)           return { border: 'border-yellow-400', bg: 'bg-yellow-50',  badge: 'bg-yellow-400 text-yellow-900',  label: 'Старт' }
-  if (b >= 1 && b <= 19) return { border: 'border-orange-400', bg: 'bg-orange-50',  badge: 'bg-orange-500 text-white',        label: 'КП' }
+  if (b >= 1 && b <= 19) return { border: 'border-red-400', bg: 'bg-red-50',  badge: 'bg-red-600 text-white',        label: 'КП' }
   if (b >= 21 && b <= 29)return { border: 'border-blue-400',   bg: 'bg-blue-50',    badge: 'bg-blue-500 text-white',          label: 'КП↕' }
   if (b >= 31 && b <= 39)return { border: 'border-green-500',  bg: 'bg-green-50',   badge: 'bg-green-600 text-white',         label: 'ФотоКП' }
   if (b === 99)          return { border: 'border-yellow-400', bg: 'bg-yellow-50',  badge: 'bg-yellow-400 text-yellow-900',   label: 'Финиш' }
   return                        { border: 'border-stone-300',  bg: 'bg-white',      badge: 'bg-stone-500 text-white',         label: 'КП' }
 }
 
-const input = "w-full border border-stone-300 rounded-xl px-3 py-2 text-stone-900 focus:outline-none focus:ring-2 focus:ring-orange-400 bg-white text-sm"
+const input = "w-full border border-stone-300 rounded-xl px-3 py-2 text-stone-900 focus:outline-none focus:ring-2 focus:ring-red-400 bg-white text-sm"
 
 const statusMap: Record<string, { label: string; cls: string }> = {
   open:     { label: 'Открыта регистрация', cls: 'bg-green-100 text-green-800' },
@@ -139,7 +139,7 @@ export default function EventDetailPage() {
                 <td className="px-4 py-3 font-semibold text-stone-900">{t.name}</td>
                 <td className="px-4 py-3 text-center text-stone-700">{kp}</td>
                 {zadachi.length > 0 && <td className="px-4 py-3 text-center text-stone-700">{tasks}</td>}
-                <td className="px-4 py-3 text-center font-bold text-orange-600">{total}</td>
+                <td className="px-4 py-3 text-center font-bold text-red-700">{total}</td>
               </tr>
             ))}
           </tbody>
@@ -176,7 +176,7 @@ export default function EventDetailPage() {
             <p className="text-sm text-stone-500">
               Ваша команда: <span className="font-semibold text-stone-700">{myTeam.name}</span>
               {' · '}
-              <Link href={`/teams/${myTeam.id}/results`} className="text-orange-600 hover:text-orange-700 font-medium">
+              <Link href={`/teams/${myTeam.id}/results`} className="text-red-700 hover:text-red-800 font-medium">
                 Детальные результаты →
               </Link>
             </p>
@@ -216,7 +216,7 @@ export default function EventDetailPage() {
                       {/* Задание */}
                       {kp.zadanie && (
                         <div className="px-4 py-3 border-t border-stone-100">
-                          <p className="text-[10px] font-bold text-orange-600 uppercase tracking-wide mb-1">Задание</p>
+                          <p className="text-[10px] font-bold text-red-700 uppercase tracking-wide mb-1">Задание</p>
                           <div className="flex items-start gap-4">
                             <div className="flex-1">
                               <p className="text-sm text-stone-800 leading-snug">{kp.zadanie.text}</p>
@@ -228,7 +228,7 @@ export default function EventDetailPage() {
                             {kp.zadanie.correct_answer && (
                               <div className="shrink-0 text-right">
                                 <p className="text-[10px] text-stone-400 mb-0.5">Ответ</p>
-                                <p className="text-sm font-bold text-orange-600">{kp.zadanie.correct_answer}</p>
+                                <p className="text-sm font-bold text-red-700">{kp.zadanie.correct_answer}</p>
                               </div>
                             )}
                           </div>
@@ -250,7 +250,7 @@ export default function EventDetailPage() {
                             {kp.zadacha.correct_answer && (
                               <div className="shrink-0 text-right">
                                 <p className="text-[10px] text-stone-400 mb-0.5">Ответ</p>
-                                <p className="text-sm font-bold text-orange-600">{kp.zadacha.correct_answer}</p>
+                                <p className="text-sm font-bold text-red-700">{kp.zadacha.correct_answer}</p>
                               </div>
                             )}
                           </div>
@@ -314,7 +314,7 @@ export default function EventDetailPage() {
         <>
           <button
             onClick={() => user ? setShowForm(!showForm) : router.push('/login')}
-            className="bg-orange-500 text-white px-7 py-3 rounded-2xl hover:bg-orange-600 font-bold transition-colors"
+            className="bg-red-600 text-white px-7 py-3 rounded-2xl hover:bg-red-700 font-bold transition-colors"
           >
             {showForm ? 'Отмена' : '+ Зарегистрировать команду'}
           </button>
@@ -331,7 +331,7 @@ export default function EventDetailPage() {
               <label className="flex items-center gap-3 cursor-pointer select-none">
                 <div
                   onClick={() => setTeamCategory(c => c === 'adult' ? 'child' : 'adult')}
-                  className={`w-11 h-6 rounded-full transition-colors relative ${teamCategory === 'adult' ? 'bg-orange-500' : 'bg-stone-300'}`}
+                  className={`w-11 h-6 rounded-full transition-colors relative ${teamCategory === 'adult' ? 'bg-red-600' : 'bg-stone-300'}`}
                 >
                   <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all ${teamCategory === 'adult' ? 'left-5' : 'left-0.5'}`} />
                 </div>
@@ -344,7 +344,7 @@ export default function EventDetailPage() {
                 <div className="flex justify-between items-center">
                   <p className="text-sm font-medium text-stone-700">Участники (вы добавлены автоматически)</p>
                   <button type="button" onClick={() => setMembers([...members, { guest_name: '', guest_email: '' }])}
-                    className="text-sm text-orange-600 hover:text-orange-700 font-medium">+ Добавить</button>
+                    className="text-sm text-red-700 hover:text-red-800 font-medium">+ Добавить</button>
                 </div>
                 {members.map((m, i) => (
                   <div key={i} className="flex gap-2 items-center">
@@ -361,7 +361,7 @@ export default function EventDetailPage() {
               </div>
               {error && <p className="text-red-500 text-sm">{error}</p>}
               <button type="submit" disabled={loading}
-                className="bg-orange-500 text-white px-6 py-2.5 rounded-xl hover:bg-orange-600 font-bold disabled:opacity-50 transition-colors">
+                className="bg-red-600 text-white px-6 py-2.5 rounded-xl hover:bg-red-700 font-bold disabled:opacity-50 transition-colors">
                 {loading ? 'Сохранение...' : 'Зарегистрировать'}
               </button>
             </form>

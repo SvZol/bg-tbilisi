@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { register } from '@/lib/auth'
 import LogoMark from '@/components/LogoMark'
 
-const input = "w-full border border-stone-300 rounded-xl px-3 py-2.5 text-stone-900 focus:outline-none focus:ring-2 focus:ring-orange-400 bg-white"
+const input = "w-full border border-stone-300 rounded-xl px-3 py-2.5 text-stone-900 focus:outline-none focus:ring-2 focus:ring-red-400 bg-white"
 
 export default function RegisterPage() {
   const [form, setForm] = useState({ email: '', password: '', full_name: '', phone: '' })
@@ -36,7 +36,7 @@ export default function RegisterPage() {
             Проверьте папку «Спам», если не видите письмо.
           </p>
           <Link href="/login"
-            className="text-orange-600 hover:text-orange-700 font-medium text-sm">
+            className="text-red-700 hover:text-red-800 font-medium text-sm">
             Уже подтвердили? Войти →
           </Link>
         </div>
@@ -69,13 +69,13 @@ export default function RegisterPage() {
           </div>
           {error && <p className="text-red-500 text-sm">{error}</p>}
           <button type="submit" disabled={loading}
-            className="w-full bg-orange-500 text-white py-2.5 rounded-xl hover:bg-orange-600 font-bold disabled:opacity-50 transition-colors">
+            className="w-full bg-red-600 text-white py-2.5 rounded-xl hover:bg-red-700 font-bold disabled:opacity-50 transition-colors">
             {loading ? 'Загрузка...' : 'Зарегистрироваться'}
           </button>
         </form>
         <p className="mt-5 text-sm text-stone-600 text-center">
           Уже есть аккаунт?{' '}
-          <Link href="/login" className="text-orange-600 hover:text-orange-700 font-medium">Войти</Link>
+          <Link href="/login" className="text-red-700 hover:text-red-800 font-medium">Войти</Link>
         </p>
       </div>
     </div>

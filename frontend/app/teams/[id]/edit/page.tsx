@@ -8,7 +8,7 @@ import { useAuth } from '@/context/AuthContext'
 interface TeamMember { id: string; user_id: string | null; guest_name: string | null; guest_email: string | null; role: string; is_registered: boolean }
 interface Team { id: string; event_id: string; name: string; status: string; members: TeamMember[] }
 
-const input = "w-full border border-stone-300 rounded-xl px-3 py-2 text-stone-900 focus:outline-none focus:ring-2 focus:ring-orange-400 bg-white text-sm"
+const input = "w-full border border-stone-300 rounded-xl px-3 py-2 text-stone-900 focus:outline-none focus:ring-2 focus:ring-red-400 bg-white text-sm"
 
 export default function TeamEditPage() {
   const { id } = useParams()
@@ -65,7 +65,7 @@ export default function TeamEditPage() {
     return (
       <div className="text-center py-12">
         <p className="text-stone-500 mb-4">Только капитан может редактировать команду</p>
-        <Link href="/dashboard" className="text-orange-600 hover:text-orange-700 font-medium">← Назад</Link>
+        <Link href="/dashboard" className="text-red-700 hover:text-red-800 font-medium">← Назад</Link>
       </div>
     )
   }
@@ -83,7 +83,7 @@ export default function TeamEditPage() {
         <form onSubmit={handleRename} className="flex gap-2">
           <input value={teamName} onChange={e => setTeamName(e.target.value)} className={input} required />
           <button type="submit" disabled={nameLoading}
-            className="bg-orange-500 text-white px-4 py-2 rounded-xl hover:bg-orange-600 font-medium disabled:opacity-50 shrink-0 transition-colors">
+            className="bg-red-600 text-white px-4 py-2 rounded-xl hover:bg-red-700 font-medium disabled:opacity-50 shrink-0 transition-colors">
             {nameLoading ? '...' : 'Сохранить'}
           </button>
         </form>
@@ -115,7 +115,7 @@ export default function TeamEditPage() {
             <input placeholder="Имя" value={newName} onChange={e => setNewName(e.target.value)} className={input} required />
             <input placeholder="Email (необязательно)" value={newEmail} onChange={e => setNewEmail(e.target.value)} className={input} />
             <button type="submit" disabled={addLoading}
-              className="bg-orange-500 text-white px-4 py-2 rounded-xl text-sm hover:bg-orange-600 font-medium disabled:opacity-50 shrink-0 transition-colors">
+              className="bg-red-600 text-white px-4 py-2 rounded-xl text-sm hover:bg-red-700 font-medium disabled:opacity-50 shrink-0 transition-colors">
               {addLoading ? '...' : 'Добавить'}
             </button>
           </div>

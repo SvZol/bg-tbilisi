@@ -18,7 +18,7 @@ const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 function kpMeta(num: number) {
   const b = num < 100 ? num : num - 100
   if (b === 0)          return { border: 'border-yellow-400', bg: 'bg-yellow-50',  label: 'bg-yellow-400', text: 'text-yellow-800', name: 'Старт' }
-  if (b >= 1 && b <=19) return { border: 'border-orange-400', bg: 'bg-orange-50',  label: 'bg-orange-500', text: 'text-white',       name: 'КП' }
+  if (b >= 1 && b <=19) return { border: 'border-red-400', bg: 'bg-red-50',  label: 'bg-red-600', text: 'text-white',       name: 'КП' }
   if (b >= 21 && b<=29) return { border: 'border-blue-400',   bg: 'bg-blue-50',    label: 'bg-blue-500',   text: 'text-white',       name: 'КП↕' }
   if (b >= 31 && b<=39) return { border: 'border-green-400',  bg: 'bg-green-50',   label: 'bg-green-600',  text: 'text-white',       name: 'Фото' }
   if (b === 99)         return { border: 'border-yellow-400', bg: 'bg-yellow-50',  label: 'bg-yellow-400', text: 'text-yellow-800',  name: 'Финиш' }
@@ -36,7 +36,7 @@ function AnswerRow({ label, item, isTask }: {
       <div className="flex items-start gap-3">
         <div className="flex-1 min-w-0">
           <span className={`inline-block text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded mb-1 ${
-            isTask ? 'bg-violet-100 text-violet-700' : 'bg-orange-100 text-orange-700'
+            isTask ? 'bg-violet-100 text-violet-700' : 'bg-red-100 text-red-800'
           }`}>{label}</span>
           <p className="text-sm text-stone-800 leading-snug">{item.text.replace(/^Задача: /, '')}</p>
           {item.image_filename && (
@@ -53,8 +53,8 @@ function AnswerRow({ label, item, isTask }: {
             </p>
           </div>
           <div className="text-right">
-            <p className="text-[10px] text-orange-500 mb-0.5">Ответ</p>
-            <p className="text-sm font-semibold text-orange-600">{item.correct_answer ?? '—'}</p>
+            <p className="text-[10px] text-red-600 mb-0.5">Ответ</p>
+            <p className="text-sm font-semibold text-red-700">{item.correct_answer ?? '—'}</p>
           </div>
           <div className={`w-7 h-7 rounded-md flex items-center justify-center shrink-0 ${ok ? 'bg-green-100' : 'bg-red-100'}`}>
             <span className="text-base">{ok ? '✓' : '✗'}</span>
@@ -97,7 +97,7 @@ export default function TeamResultsPage() {
     <div className="max-w-2xl mx-auto space-y-5">
       {/* Шапка */}
       <div>
-        <Link href={`/events/${team.event_id}`} className="text-sm text-stone-400 hover:text-orange-600 transition-colors">
+        <Link href={`/events/${team.event_id}`} className="text-sm text-stone-400 hover:text-red-700 transition-colors">
           ← К мероприятию
         </Link>
         <h1 className="text-2xl font-extrabold text-stone-900 mt-2">{team.name}</h1>
@@ -110,9 +110,9 @@ export default function TeamResultsPage() {
       ) : (
         <>
           {/* Итог */}
-          <div className="bg-orange-50 border border-orange-200 rounded-2xl p-5 grid grid-cols-3 gap-4 text-center">
+          <div className="bg-red-50 border border-red-200 rounded-2xl p-5 grid grid-cols-3 gap-4 text-center">
             <div>
-              <p className="text-3xl font-extrabold text-orange-600">{totalPts}</p>
+              <p className="text-3xl font-extrabold text-red-700">{totalPts}</p>
               <p className="text-xs text-stone-500 mt-1">Всего очков</p>
             </div>
             <div>

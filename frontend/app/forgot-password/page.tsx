@@ -3,7 +3,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import api from '@/lib/api'
 
-const input = "w-full border border-stone-300 rounded-xl px-3 py-2.5 text-stone-900 focus:outline-none focus:ring-2 focus:ring-orange-400 bg-white"
+const input = "w-full border border-stone-300 rounded-xl px-3 py-2.5 text-stone-900 focus:outline-none focus:ring-2 focus:ring-red-400 bg-white"
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('')
@@ -39,7 +39,7 @@ export default function ForgotPasswordPage() {
               Если этот email зарегистрирован, на него придёт ссылка для сброса пароля.
               Проверьте папку «Спам», если не видите письмо.
             </p>
-            <Link href="/login" className="text-orange-600 hover:text-orange-700 font-medium text-sm">
+            <Link href="/login" className="text-red-700 hover:text-red-800 font-medium text-sm">
               Вернуться к входу
             </Link>
           </div>
@@ -55,11 +55,11 @@ export default function ForgotPasswordPage() {
             </div>
             {error && <p className="text-red-500 text-sm">{error}</p>}
             <button type="submit" disabled={loading}
-              className="w-full bg-orange-500 text-white py-2.5 rounded-xl hover:bg-orange-600 font-bold disabled:opacity-50 transition-colors">
+              className="w-full bg-red-600 text-white py-2.5 rounded-xl hover:bg-red-700 font-bold disabled:opacity-50 transition-colors">
               {loading ? 'Отправляем...' : 'Отправить ссылку'}
             </button>
             <p className="text-center text-sm text-stone-500">
-              <Link href="/login" className="text-orange-600 hover:text-orange-700 font-medium">
+              <Link href="/login" className="text-red-700 hover:text-red-800 font-medium">
                 Вернуться к входу
               </Link>
             </p>
