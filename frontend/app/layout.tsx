@@ -7,6 +7,7 @@ import Navbar from '@/components/Navbar'
 const inter = Inter({ subsets: ['latin', 'cyrillic'] })
 
 export const metadata: Metadata = {
+  metadataBase: new URL('https://tbi-ssector.run'),
   title: 'ТБИссектриса',
   description: 'Городская семейная игра с элементами ориентирования и математики',
   openGraph: {
