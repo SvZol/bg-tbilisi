@@ -16,28 +16,10 @@ export default function Navbar() {
     <nav className="bg-white border-b-2 border-orange-100">
       <div className="max-w-5xl mx-auto px-4 py-2 flex items-center justify-between">
         {/* Логотип */}
-        <Link href="/" className="flex items-center gap-3 group">
-          {/* Три мешочка — SVG-иконка */}
-          <svg width="44" height="36" viewBox="0 0 44 36" fill="none" xmlns="http://www.w3.org/2000/svg">
-            {/* жёлтый */}
-            <ellipse cx="18" cy="26" rx="10" ry="7" fill="#FACC15" stroke="#111" strokeWidth="1.5"/>
-            <path d="M14 20 Q18 14 22 20" stroke="#111" strokeWidth="1.5" fill="none"/>
-            <circle cx="18" cy="18.5" r="2" fill="#FACC15" stroke="#111" strokeWidth="1.2"/>
-            {/* голубой */}
-            <ellipse cx="32" cy="27" rx="9" ry="6.5" fill="#38BDF8" stroke="#111" strokeWidth="1.5"/>
-            <path d="M28 21.5 Q32 16 36 21.5" stroke="#111" strokeWidth="1.5" fill="none"/>
-            <circle cx="32" cy="20" r="2" fill="#38BDF8" stroke="#111" strokeWidth="1.2"/>
-            {/* красный — поверх */}
-            <ellipse cx="22" cy="28" rx="10" ry="7" fill="#F87171" stroke="#111" strokeWidth="1.5"/>
-            <path d="M18 22 Q22 15.5 26 22" stroke="#111" strokeWidth="1.5" fill="none"/>
-            <circle cx="22" cy="20" r="2.2" fill="#F87171" stroke="#111" strokeWidth="1.2"/>
-          </svg>
-
-          {/* Текст логотипа */}
+        <Link href="/" className="flex items-center gap-2 group">
+          <img src="/logo-icon.png.jpg" alt="" className="h-10 w-auto" />
           <div className="leading-none">
-            <div className="font-extrabold text-lg tracking-tight">
-              <span className="text-red-600">ТБИ</span><span className="text-stone-900">ссектриса</span>
-            </div>
+            <img src="/logo-text.png.jpg" alt="ТБИссектриса" className="h-7 w-auto" />
             <div className="text-[10px] text-stone-400 tracking-widest uppercase font-medium mt-0.5">
               Городская игра · Тбилиси
             </div>

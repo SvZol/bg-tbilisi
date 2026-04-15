@@ -7,8 +7,13 @@ import Navbar from '@/components/Navbar'
 const inter = Inter({ subsets: ['latin', 'cyrillic'] })
 
 export const metadata: Metadata = {
-  title: 'Бегущий город Тбилиси',
-  description: 'Регистрация команд на городские квесты Тбилиси',
+  title: 'ТБИссектриса',
+  description: 'Городская семейная игра с элементами ориентирования и математики',
+  openGraph: {
+    title: 'ТБИссектриса',
+    description: 'Городская семейная игра с элементами ориентирования и математики',
+    images: ['/logo-icon.png.jpg'],
+  },
 }
 
 export default function RootLayout({

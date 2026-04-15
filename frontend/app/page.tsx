@@ -42,30 +42,12 @@ export default function HomePage() {
       {/* Hero */}
       <section className="relative rounded-3xl overflow-hidden bg-gradient-to-br from-orange-500 to-amber-400 px-8 py-16 text-white">
         <div className="relative z-10 max-w-xl">
-          {/* Инвертированная версия логотипа для тёмного фона */}
           <div className="flex items-center gap-3 mb-6">
-            <svg width="52" height="42" viewBox="0 0 44 36" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <ellipse cx="18" cy="26" rx="10" ry="7" fill="#FDE68A" stroke="rgba(255,255,255,0.6)" strokeWidth="1.5"/>
-              <path d="M14 20 Q18 14 22 20" stroke="rgba(255,255,255,0.6)" strokeWidth="1.5" fill="none"/>
-              <circle cx="18" cy="18.5" r="2" fill="#FDE68A" stroke="rgba(255,255,255,0.6)" strokeWidth="1.2"/>
-              <ellipse cx="32" cy="27" rx="9" ry="6.5" fill="#BAE6FD" stroke="rgba(255,255,255,0.6)" strokeWidth="1.5"/>
-              <path d="M28 21.5 Q32 16 36 21.5" stroke="rgba(255,255,255,0.6)" strokeWidth="1.5" fill="none"/>
-              <circle cx="32" cy="20" r="2" fill="#BAE6FD" stroke="rgba(255,255,255,0.6)" strokeWidth="1.2"/>
-              <ellipse cx="22" cy="28" rx="10" ry="7" fill="#FCA5A5" stroke="rgba(255,255,255,0.6)" strokeWidth="1.5"/>
-              <path d="M18 22 Q22 15.5 26 22" stroke="rgba(255,255,255,0.6)" strokeWidth="1.5" fill="none"/>
-              <circle cx="22" cy="20" r="2.2" fill="#FCA5A5" stroke="rgba(255,255,255,0.6)" strokeWidth="1.2"/>
-            </svg>
-            <div className="leading-none">
-              <div className="font-extrabold text-2xl tracking-tight">
-                <span className="text-white/90">ТБИ</span><span className="text-white">ссектриса</span>
-              </div>
-              <div className="text-[10px] text-orange-100 tracking-widest uppercase font-medium mt-0.5">
-                Городская игра · Тбилиси
-              </div>
-            </div>
+            <img src="/logo-icon.png.jpg" alt="" className="h-16 w-auto drop-shadow-lg" />
+            <img src="/logo-text.png.jpg" alt="ТБИссектриса" className="h-10 w-auto brightness-0 invert" />
           </div>
           <p className="text-orange-100 text-lg mb-8 leading-relaxed">
-            Городской квест по улицам Тбилиси. Собирай команду, изучай город, побеждай!
+            Городская семейная игра с элементами ориентирования и математики
           </p>
           <Link
             href="/events"
