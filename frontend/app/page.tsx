@@ -41,7 +41,7 @@ export default function HomePage() {
   return (
     <div className="space-y-16">
       {/* Hero */}
-      <section className="relative -mx-4 -mt-8 h-[480px] overflow-hidden">
+      <section className="relative h-[480px] overflow-hidden rounded-3xl">
         {/* Фото города */}
         <img
           src="/picture.PNG"

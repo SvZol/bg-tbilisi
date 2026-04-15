@@ -17,13 +17,8 @@ export default function Navbar() {
       <div className="max-w-5xl mx-auto px-4 py-2 flex items-center justify-between">
         {/* Логотип */}
         <Link href="/" className="flex items-center gap-2 group">
-          <img src="/logo-icon.PNG" alt="" className="h-10 w-auto" />
-          <div className="leading-none">
-            <img src="/logo-text.PNG" alt="ТБИссектриса" className="h-7 w-auto" />
-            <div className="text-[10px] text-stone-400 tracking-widest uppercase font-medium mt-0.5">
-              Городская игра · Тбилиси
-            </div>
-          </div>
+          <img src="/logo-icon.PNG" alt="" className="h-12 w-auto" />
+          <img src="/logo-text.PNG" alt="ТБИссектриса" className="h-10 w-auto" />
         </Link>
 
         <div className="flex items-center gap-5 text-sm">
