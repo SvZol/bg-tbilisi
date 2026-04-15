@@ -14,11 +14,11 @@ export default function Navbar() {
 
   return (
     <nav className="bg-white border-b-2 border-red-100">
-      <div className="max-w-5xl mx-auto px-4 py-2 flex items-center justify-between">
+      <div className="max-w-5xl mx-auto px-4 flex items-center justify-between">
         {/* Логотип */}
         <Link href="/" className="flex items-center gap-2 group">
           <img src="/logo-icon.PNG" alt="" className="h-12 w-auto" />
-          <img src="/logo-text.PNG" alt="ТБИссектриса" className="h-[120px] w-auto" />
+          <img src="/logo-text.PNG" alt="ТБИссектриса" className="h-[90px] w-auto" />
         </Link>
 
         <div className="flex items-center gap-5 text-sm">
