@@ -2,7 +2,6 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import api from '@/lib/api'
-import LogoMark from '@/components/LogoMark'
 
 interface Event {
   id: string
@@ -15,9 +14,9 @@ interface Event {
 }
 
 const statusMap: Record<string, { label: string; cls: string }> = {
-  open:     { label: 'Открыта регистрация', cls: 'bg-green-100 text-green-700' },
-  closed:   { label: 'Регистрация закрыта', cls: 'bg-amber-100 text-amber-700' },
-  finished: { label: 'Завершено',           cls: 'bg-stone-100 text-stone-500' },
+  open:     { label: 'Открыта регистрация', cls: 'bg-red-100 text-red-700' },
+  closed:   { label: 'Регистрация закрыта', cls: 'bg-stone-100 text-stone-500' },
+  finished: { label: 'Завершено',           cls: 'bg-stone-100 text-stone-400' },
 }
 
 interface Post {
@@ -27,6 +26,8 @@ interface Post {
   image_filename: string | null
   created_at: string
 }
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
 export default function HomePage() {
   const [events, setEvents] = useState<Event[]>([])
@@ -40,32 +41,35 @@ export default function HomePage() {
   return (
     <div className="space-y-16">
       {/* Hero */}
-      <section className="relative rounded-3xl overflow-hidden bg-gradient-to-br from-orange-500 to-amber-400 px-8 py-16 text-white">
-        <div className="relative z-10 max-w-xl">
-          <div className="flex items-center gap-3 mb-6">
-            <img src="/logo-icon.png.jpg" alt="" className="h-16 w-auto drop-shadow-lg" />
-            <img src="/logo-text.png.jpg" alt="ТБИссектриса" className="h-10 w-auto brightness-0 invert" />
-          </div>
-          <p className="text-orange-100 text-lg mb-8 leading-relaxed">
-            Городская семейная игра с элементами ориентирования и математики
+      <section className="relative -mx-4 -mt-8 h-[480px] overflow-hidden">
+        {/* Фото города */}
+        <img
+          src="/picture.PNG"
+          alt="Тбилиси"
+          className="absolute inset-0 w-full h-full object-cover"
+        />
+        {/* Лёгкий оверлей */}
+        <div className="absolute inset-0 bg-white/30" />
+
+        {/* Текст поверх */}
+        <div className="absolute bottom-10 left-8">
+          <p className="text-red-600 text-2xl font-bold leading-snug drop-shadow-sm max-w-lg">
+            Городская семейная игра с элементами<br />ориентирования и математики
           </p>
           <Link
             href="/events"
-            className="inline-block bg-white text-orange-600 font-bold px-7 py-3 rounded-2xl hover:bg-orange-50 transition-colors text-base"
+            className="inline-block mt-5 bg-red-600 text-white font-bold px-7 py-3 rounded-xl hover:bg-red-700 transition-colors text-base"
           >
             Смотреть мероприятия →
           </Link>
         </div>
-        {/* Decorative circles */}
-        <div className="absolute right-0 top-0 w-80 h-80 bg-white opacity-5 rounded-full -translate-y-1/3 translate-x-1/4" />
-        <div className="absolute right-16 bottom-0 w-48 h-48 bg-white opacity-5 rounded-full translate-y-1/3" />
       </section>
 
       {/* Ближайшие мероприятия */}
       <section>
         <div className="flex justify-between items-center mb-6">
-          <h2 className="text-2xl font-bold text-stone-800">Ближайшие мероприятия</h2>
-          <Link href="/events" className="text-orange-500 hover:text-orange-700 text-sm font-medium">
+          <h2 className="text-2xl font-bold text-stone-900">Ближайшие мероприятия</h2>
+          <Link href="/events" className="text-red-600 hover:text-red-700 text-sm font-medium">
             Все →
           </Link>
         </div>
@@ -79,23 +83,22 @@ export default function HomePage() {
               <Link
                 key={event.id}
                 href={`/events/${event.id}`}
-                className="group bg-white border border-stone-200 rounded-2xl p-5 hover:border-orange-300 hover:shadow-md transition-all"
+                className="group bg-white border border-stone-200 rounded-2xl p-5 hover:border-red-300 hover:shadow-md transition-all"
               >
-                <div className="text-2xl mb-3">🗺️</div>
-                <h3 className="font-bold text-stone-800 text-lg mb-2 group-hover:text-orange-600 transition-colors">
+                <h3 className="font-bold text-stone-900 text-lg mb-2 group-hover:text-red-600 transition-colors">
                   {event.title}
                 </h3>
                 <p className="text-stone-500 text-sm mb-4 line-clamp-2">{event.description}</p>
-                <div className="text-xs text-stone-400 space-y-1">
-                  <p>📅 {new Date(event.starts_at).toLocaleDateString('ru-RU')}</p>
+                <div className="text-xs text-stone-400 space-y-1 mb-3">
+                  <p>{new Date(event.starts_at).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
                   {event.status !== 'finished' && (
-                    <p>⏰ Регистрация до {new Date(event.reg_deadline).toLocaleDateString('ru-RU')}</p>
+                    <p>Регистрация до {new Date(event.reg_deadline).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })}</p>
                   )}
                 </div>
                 {(() => {
                   const st = statusMap[event.status] || statusMap.open
                   return (
-                    <span className={`inline-block mt-3 text-xs px-2 py-1 rounded-full font-medium ${st.cls}`}>
+                    <span className={`inline-block text-xs px-2 py-1 rounded-full font-medium ${st.cls}`}>
                       {st.label}
                     </span>
                   )
@@ -109,19 +112,19 @@ export default function HomePage() {
       {/* Новости */}
       {posts.length > 0 && (
         <section>
-          <h2 className="text-2xl font-bold text-stone-800 mb-6">Новости</h2>
+          <h2 className="text-2xl font-bold text-stone-900 mb-6">Новости</h2>
           <div className="space-y-5">
             {posts.slice(0, 3).map(post => (
               <div key={post.id} className="bg-white border border-stone-200 rounded-2xl overflow-hidden">
                 {post.image_filename && (
                   <img
-                    src={`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/uploads/${post.image_filename}`}
+                    src={`${API_URL}/uploads/${post.image_filename}`}
                     alt={post.title}
                     className="w-full h-52 object-cover"
                   />
                 )}
                 <div className="p-6">
-                  <h3 className="font-bold text-stone-800 text-lg mb-2">{post.title}</h3>
+                  <h3 className="font-bold text-stone-900 text-lg mb-2">{post.title}</h3>
                   <p className="text-stone-600 line-clamp-3 text-sm leading-relaxed">{post.content}</p>
                   <p className="text-xs text-stone-400 mt-3">
                     {new Date(post.created_at).toLocaleDateString('ru-RU')}

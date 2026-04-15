@@ -9,8 +9,8 @@ export default function LogoMark({ size = 'md' }: LogoMarkProps) {
 
   return (
     <div className="flex flex-col items-center gap-2">
-      <img src="/logo-icon.png.jpg" alt="" className={`${iconH} w-auto`} />
-      <img src="/logo-text.png.jpg" alt="ТБИссектриса" className={`${textH} w-auto`} />
+      <img src="/logo-icon.PNG" alt="" className={`${iconH} w-auto`} />
+      <img src="/logo-text.PNG" alt="ТБИссектриса" className={`${textH} w-auto`} />
       <p className={`${subSize} text-stone-400 tracking-widest uppercase font-medium`}>
         Городская семейная игра · Тбилиси
       </p>

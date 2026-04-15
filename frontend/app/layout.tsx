@@ -13,7 +13,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: 'ТБИссектриса',
     description: 'Городская семейная игра с элементами ориентирования и математики',
-    images: ['/logo-icon.png.jpg'],
+    images: ['/logo-icon.PNG'],
   },
 }
 
@@ -24,7 +24,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="ru">
-      <body className={inter.className} style={{ background: '#FFFBF5' }}>
+      <body className={inter.className} style={{ background: '#ffffff' }}>
         <AuthProvider>
           <Navbar />
           <main className="max-w-5xl mx-auto px-4 py-8">
