@@ -82,7 +82,7 @@ def verify_email(token: str, db: Session = Depends(get_db)):
     if not user:
         # Возможно токен уже использован — email уже подтверждён
         return {"ok": True, "message": "Email уже подтверждён! Можете войти."}
-    if user.email_token_expires and user.email_token_expires < datetime.now(timezone.utc):
+    if user.email_token_expires and user.email_token_expires < datetime.utcnow():
         raise HTTPException(400, "Ссылка истекла. Запросите новую.")
     user.is_verified = True
     user.email_token = None
@@ -128,7 +128,7 @@ def reset_password(token: str, new_password: str, db: Session = Depends(get_db))
     user = db.query(User).filter(User.reset_token == token).first()
     if not user:
         raise HTTPException(400, "Неверная или устаревшая ссылка")
-    if user.reset_token_expires and user.reset_token_expires < datetime.now(timezone.utc):
+    if user.reset_token_expires and user.reset_token_expires < datetime.utcnow():
         raise HTTPException(400, "Ссылка истекла. Запросите сброс пароля заново.")
     if len(new_password) < 6:
         raise HTTPException(400, "Пароль должен быть минимум 6 символов")
