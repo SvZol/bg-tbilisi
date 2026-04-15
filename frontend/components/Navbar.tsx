@@ -18,7 +18,7 @@ export default function Navbar() {
         {/* Логотип */}
         <Link href="/" className="flex items-center gap-2 group">
           <img src="/logo-icon.PNG" alt="" className="h-12 w-auto" />
-          <img src="/logo-text.PNG" alt="ТБИссектриса" className="h-10 w-auto" />
+          <img src="/logo-text.PNG" alt="ТБИссектриса" className="h-[120px] w-auto" />
         </Link>
 
         <div className="flex items-center gap-5 text-sm">
