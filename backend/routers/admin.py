@@ -960,6 +960,44 @@ def upsert_page(slug: str, data: PageUpsert, db: Session = Depends(get_db), admi
     return {"slug": page.slug, "title": page.title, "content": page.content, "is_published": page.is_published}
 
 
+# --- Скорборд ---
+
+@router.get("/events/{event_id}/scoreboard")
+def get_scoreboard(event_id: UUID, db: Session = Depends(get_db), admin=Depends(get_current_admin)):
+    from models.content import TeamQuestionResult, EventQuestion
+    from models.team import Team
+
+    teams = db.query(Team).filter(Team.event_id == event_id).all()
+    results = (
+        db.query(TeamQuestionResult)
+        .join(EventQuestion)
+        .filter(EventQuestion.event_id == event_id)
+        .all()
+    )
+
+    score_map: dict = {}
+    for r in results:
+        key = str(r.team_id)
+        score_map[key] = score_map.get(key, 0) + (r.points_earned or 0)
+
+    rows = []
+    for team in teams:
+        rows.append({
+            "id": str(team.id),
+            "name": team.name,
+            "category": team.category or "adult",
+            "score": score_map.get(str(team.id), 0),
+        })
+
+    adult = sorted([r for r in rows if r["category"] != "child"], key=lambda x: -x["score"])
+    child = sorted([r for r in rows if r["category"] == "child"], key=lambda x: -x["score"])
+
+    for i, r in enumerate(adult): r["rank"] = i + 1
+    for i, r in enumerate(child): r["rank"] = i + 1
+
+    return {"adult": adult, "child": child}
+
+
 # --- Публикация результатов ---
 
 @router.post("/events/{event_id}/publish-results")

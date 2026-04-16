@@ -55,8 +55,7 @@ export default function AdminPage() {
 
   const [selectedEventId, setSelectedEventId] = useState('')
   const [eventTeams, setEventTeams] = useState<Team[]>([])
-  const [eventResults, setEventResults] = useState<any[]>([])
-  const [resultForm, setResultForm] = useState({ team_id: '', rank: '', score: '', notes: '' })
+  const [scoreboard, setScoreboard] = useState<{ adult: any[]; child: any[] } | null>(null)
 
   // Вопросы
   const [questions, setQuestions] = useState<Question[]>([])
@@ -163,12 +162,11 @@ export default function AdminPage() {
     } catch { setNotifyMsg('Ошибка') }
   }
 
-  async function handleCreateResult(e: React.FormEvent) {
-    e.preventDefault()
-    await api.post('/admin/results', { ...resultForm, event_id: selectedEventId })
-    const res = await api.get(`/admin/results/${selectedEventId}`)
-    setEventResults(res.data)
-    setResultForm({ team_id: '', rank: '', score: '', notes: '' })
+  async function loadScoreboard(eventId: string) {
+    try {
+      const res = await api.get(`/admin/events/${eventId}/scoreboard`)
+      setScoreboard(res.data)
+    } catch { setScoreboard(null) }
   }
 
   async function deleteTeam(teamId: string) {
@@ -601,59 +599,42 @@ export default function AdminPage() {
       {tab === 'results' && (
         <div className="space-y-5">
           <h2 className="font-bold text-stone-900">Выберите мероприятие</h2>
-          {eventSelector(loadEventData)}
+          {eventSelector((id) => { loadEventData(id); loadScoreboard(id) })}
           {selectedEventId && (
             <>
-              <div className={card}>
-                <h3 className="font-bold text-stone-900 mb-4">Добавить итоговый результат</h3>
-                <form onSubmit={handleCreateResult} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-stone-700 mb-1">Команда</label>
-                    <select value={resultForm.team_id} onChange={e => setResultForm({ ...resultForm, team_id: e.target.value })} className={input} required>
-                      <option value="">Выберите команду</option>
-                      {eventTeams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-stone-700 mb-1">Место</label>
-                    <input placeholder="1, 2, 3..." value={resultForm.rank} onChange={e => setResultForm({ ...resultForm, rank: e.target.value })} className={input} />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-stone-700 mb-1">Счёт</label>
-                    <input placeholder="Например: 95 баллов" value={resultForm.score} onChange={e => setResultForm({ ...resultForm, score: e.target.value })} className={input} />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-stone-700 mb-1">Примечание</label>
-                    <input placeholder="Необязательно" value={resultForm.notes} onChange={e => setResultForm({ ...resultForm, notes: e.target.value })} className={input} />
-                  </div>
-                  <div className="md:col-span-2">
-                    <button type="submit" className={btn}>Добавить результат</button>
-                  </div>
-                </form>
-              </div>
-
-              {eventResults.length > 0 && (
-                <div className="border border-stone-200 rounded-2xl overflow-hidden">
-                  <table className="w-full text-sm">
-                    <thead className="bg-stone-50">
-                      <tr>
-                        {['Место', 'Команда', 'Счёт', 'Примечание'].map(h => (
-                          <th key={h} className="text-left px-4 py-3 font-medium text-stone-700">{h}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {eventResults.map((r: any) => (
-                        <tr key={r.id} className="border-t border-stone-100">
-                          <td className="px-4 py-3 text-stone-900">{r.rank || '—'}</td>
-                          <td className="px-4 py-3 text-stone-900">{eventTeams.find(t => t.id === r.team_id)?.name || '—'}</td>
-                          <td className="px-4 py-3 text-stone-700">{r.score || '—'}</td>
-                          <td className="px-4 py-3 text-stone-600">{r.notes || '—'}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+              {!scoreboard ? (
+                <p className="text-stone-500">Нет данных</p>
+              ) : (
+                <>
+                  {[
+                    { key: 'adult', label: '🧑 Взрослый зачёт', rows: scoreboard.adult },
+                    { key: 'child', label: '🧒 Детский зачёт',  rows: scoreboard.child },
+                  ].map(({ key, label, rows }) => rows.length === 0 ? null : (
+                    <div key={key}>
+                      <h3 className="font-bold text-stone-700 mb-2">{label}</h3>
+                      <div className="border border-stone-200 rounded-2xl overflow-hidden">
+                        <table className="w-full text-sm">
+                          <thead className="bg-stone-50">
+                            <tr>
+                              {['#', 'Команда', 'Баллы'].map(h => (
+                                <th key={h} className="text-left px-4 py-3 font-medium text-stone-700">{h}</th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {rows.map((r: any) => (
+                              <tr key={r.id} className="border-t border-stone-100">
+                                <td className="px-4 py-3 font-bold text-stone-500 w-10">{r.rank}</td>
+                                <td className="px-4 py-3 text-stone-900 font-medium">{r.name}</td>
+                                <td className="px-4 py-3 text-stone-700">{r.score}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  ))}
+                </>
               )}
             </>
           )}
