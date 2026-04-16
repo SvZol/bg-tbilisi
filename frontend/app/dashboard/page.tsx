@@ -132,7 +132,7 @@ export default function DashboardPage() {
           try {
             const teamsRes = await api.get(`/teams/event/${event.id}`)
             const myTeams = (teamsRes.data as Team[]).filter(t =>
-              t.members.some(m => m.user_id === user!.id)
+              t.members.some(m => String(m.user_id) === String(user!.id))
             )
             for (const team of myTeams) allTeams.push({ team, event })
           } catch {}
@@ -154,8 +154,8 @@ export default function DashboardPage() {
   if (loading || dataLoading) return <p className="text-stone-500">Загрузка...</p>
   if (!user) return null
 
-  const captainTeams  = teamsWithEvents.filter(tw => tw.team.members.some(m => m.user_id === user.id && m.role === 'captain'))
-  const memberTeams   = teamsWithEvents.filter(tw => tw.team.members.some(m => m.user_id === user.id && m.role !== 'captain'))
+  const captainTeams  = teamsWithEvents.filter(tw => tw.team.members.some(m => String(m.user_id) === String(user.id) && m.role === 'captain'))
+  const memberTeams   = teamsWithEvents.filter(tw => tw.team.members.some(m => String(m.user_id) === String(user.id) && m.role !== 'captain'))
 
   const activeCapt    = captainTeams.filter(tw => tw.event?.status !== 'finished')
   const archivedCapt  = captainTeams.filter(tw => tw.event?.status === 'finished')

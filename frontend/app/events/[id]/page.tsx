@@ -329,15 +329,14 @@ export default function EventDetailPage() {
               </div>
 
               <label className="flex items-center gap-3 cursor-pointer select-none">
-                <div
-                  onClick={() => setTeamCategory(c => c === 'adult' ? 'child' : 'adult')}
-                  className={`w-11 h-6 rounded-full transition-colors relative ${teamCategory === 'adult' ? 'bg-red-600' : 'bg-stone-300'}`}
-                >
-                  <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all ${teamCategory === 'adult' ? 'left-5' : 'left-0.5'}`} />
-                </div>
-                <span className="text-sm font-medium text-stone-700">
-                  {teamCategory === 'adult' ? '🧑 Взрослый зачёт' : '🧒 Детский зачёт'}
-                </span>
+                <input
+                  type="checkbox"
+                  checked={teamCategory === 'adult'}
+                  onChange={e => setTeamCategory(e.target.checked ? 'adult' : 'child')}
+                  className="w-4 h-4 rounded border-stone-300 text-red-600 focus:ring-red-500 cursor-pointer"
+                />
+                <span className="text-sm font-medium text-stone-700">Взрослый зачёт</span>
+                <span className="text-xs text-stone-400">(снимите галочку для детского зачёта)</span>
               </label>
 
               <div className="space-y-3">
