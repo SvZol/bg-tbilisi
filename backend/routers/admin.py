@@ -1014,21 +1014,25 @@ def publish_results(event_id: UUID, background_tasks: BackgroundTasks, db: Sessi
     if event:
         from models.content import TeamQuestionResult, EventQuestion as EQ
         teams = db.query(Team).filter(Team.event_id == event_id).all()
-        results = db.query(EventResult).filter(EventResult.event_id == event_id).all()
-        result_map = {str(r.team_id): r for r in results}
+        all_pts = db.query(TeamQuestionResult).join(EQ).filter(EQ.event_id == event_id).all()
+
+        # Считаем баллы для каждой команды
+        score_map: dict = {}
+        for p in all_pts:
+            key = str(p.team_id)
+            score_map[key] = score_map.get(key, 0) + (p.points_earned or 0)
+
+        # Вычисляем место внутри каждого зачёта
+        for cat in ("adult", "child"):
+            cat_teams = [t for t in teams if (t.category or "adult") == cat]
+            cat_teams.sort(key=lambda t: -score_map.get(str(t.id), 0))
+            for i, t in enumerate(cat_teams):
+                score_map[f"rank_{t.id}"] = i + 1
+
         notified = set()
         for team in teams:
-            r = result_map.get(str(team.id))
-            rank = r.rank if r else None
-            # Если score нет в EventResult — считаем из TeamQuestionResult
-            if r and r.score is not None:
-                score = r.score
-            else:
-                pts = db.query(TeamQuestionResult).join(EQ).filter(
-                    TeamQuestionResult.team_id == team.id,
-                    EQ.event_id == event_id
-                ).all()
-                score = sum(p.points_earned for p in pts) if pts else None
+            score = score_map.get(str(team.id), 0)
+            rank = score_map.get(f"rank_{team.id}")
             for member in team.members:
                 email = None
                 if member.user_id:
