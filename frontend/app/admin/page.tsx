@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation'
 import api from '@/lib/api'
 import { useAuth } from '@/context/AuthContext'
 
-interface Event { id: string; title: string; status: string; starts_at: string }
+interface Event { id: string; title: string; status: string; starts_at: string; ends_at: string; reg_deadline: string }
 interface Post { id: string; title: string; content: string; is_published: boolean; image_filename: string | null; created_at: string }
 interface TeamMember { id: string; user_id: string | null; guest_name: string | null; guest_email: string | null; display_name: string | null; display_email: string | null; role: string; is_registered: boolean }
 interface Team { id: string; name: string; status: string; category: string; members: TeamMember[] }
@@ -46,6 +46,12 @@ export default function AdminPage() {
   const [eventError, setEventError] = useState('')
   const [postError, setPostError] = useState('')
   const [uploadingPostId, setUploadingPostId] = useState<string | null>(null)
+
+  // Перенос мероприятия
+  const [reschedulingId, setReschedulingId] = useState<string | null>(null)
+  const [rescheduleForm, setRescheduleForm] = useState({ starts_at: '', ends_at: '', reg_deadline: '' })
+  const [rescheduleMsg, setRescheduleMsg] = useState('')
+  const [notifyMsg, setNotifyMsg] = useState('')
 
   const [selectedEventId, setSelectedEventId] = useState('')
   const [eventTeams, setEventTeams] = useState<Team[]>([])
@@ -136,6 +142,25 @@ export default function AdminPage() {
   async function changeEventStatus(id: string, status: string) {
     await api.patch(`/admin/events/${id}/status?status=${status}`)
     setEvents(events.map(e => e.id === id ? { ...e, status } : e))
+  }
+
+  async function handleReschedule(e: React.FormEvent) {
+    e.preventDefault(); setRescheduleMsg('')
+    try {
+      await api.patch(`/admin/events/${reschedulingId}/reschedule`, rescheduleForm)
+      const res = await api.get('/admin/events')
+      setEvents(res.data)
+      setRescheduleMsg('Перенесено! Участники оповещены.')
+      setReschedulingId(null)
+    } catch { setRescheduleMsg('Ошибка') }
+  }
+
+  async function handleNotifyNew(eventId: string) {
+    setNotifyMsg('')
+    try {
+      const res = await api.post(`/admin/events/${eventId}/notify-new`)
+      setNotifyMsg(`Оповещено пользователей: ${res.data.notified}`)
+    } catch { setNotifyMsg('Ошибка') }
   }
 
   async function handleCreateResult(e: React.FormEvent) {
@@ -377,19 +402,63 @@ export default function AdminPage() {
 
           <div>
             <h2 className="font-bold text-stone-900 mb-3">Все мероприятия</h2>
-            <div className="space-y-2">
+            {notifyMsg && <p className="text-sm text-green-700 mb-3 font-medium">{notifyMsg}</p>}
+            {rescheduleMsg && <p className="text-sm text-green-700 mb-3 font-medium">{rescheduleMsg}</p>}
+            <div className="space-y-3">
               {events.map(ev => (
-                <div key={ev.id} className={`${card} flex justify-between items-center py-3`}>
-                  <div>
-                    <p className="font-semibold text-stone-900">{ev.title}</p>
-                    <p className="text-sm text-stone-500">{new Date(ev.starts_at).toLocaleDateString('ru-RU')}</p>
+                <div key={ev.id} className={card}>
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <p className="font-semibold text-stone-900">{ev.title}</p>
+                      <p className="text-sm text-stone-500">
+                        {new Date(ev.starts_at).toLocaleDateString('ru-RU')} — рег. до {new Date(ev.reg_deadline).toLocaleDateString('ru-RU')}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2 flex-wrap justify-end">
+                      <select value={ev.status} onChange={e => changeEventStatus(ev.id, e.target.value)}
+                        className="text-sm border border-stone-300 rounded-xl px-3 py-1.5 text-stone-800 bg-white focus:outline-none focus:ring-2 focus:ring-red-400">
+                        <option value="open">Открыто</option>
+                        <option value="closed">Закрыто</option>
+                        <option value="finished">Завершено</option>
+                      </select>
+                      <button onClick={() => { setReschedulingId(ev.id); setRescheduleMsg(''); setRescheduleForm({ starts_at: ev.starts_at.slice(0,16), ends_at: ev.ends_at.slice(0,16), reg_deadline: ev.reg_deadline.slice(0,16) }) }}
+                        className="text-sm border border-stone-300 px-3 py-1.5 rounded-xl hover:border-red-400 text-stone-700 transition-colors">
+                        Перенести
+                      </button>
+                      <button onClick={() => handleNotifyNew(ev.id)}
+                        className="text-sm border border-stone-300 px-3 py-1.5 rounded-xl hover:border-red-400 text-stone-700 transition-colors">
+                        Оповестить всех
+                      </button>
+                    </div>
                   </div>
-                  <select value={ev.status} onChange={e => changeEventStatus(ev.id, e.target.value)}
-                    className="text-sm border border-stone-300 rounded-xl px-3 py-1.5 text-stone-800 bg-white focus:outline-none focus:ring-2 focus:ring-red-400">
-                    <option value="open">Открыто</option>
-                    <option value="closed">Закрыто</option>
-                    <option value="finished">Завершено</option>
-                  </select>
+
+                  {reschedulingId === ev.id && (
+                    <form onSubmit={handleReschedule} className="mt-4 pt-4 border-t border-stone-200 grid grid-cols-1 md:grid-cols-3 gap-3">
+                      <div>
+                        <label className="block text-xs font-medium text-stone-600 mb-1">Новая дата начала</label>
+                        <input type="datetime-local" value={rescheduleForm.starts_at}
+                          onChange={e => setRescheduleForm({ ...rescheduleForm, starts_at: e.target.value })}
+                          className={input} required />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-stone-600 mb-1">Новая дата окончания</label>
+                        <input type="datetime-local" value={rescheduleForm.ends_at}
+                          onChange={e => setRescheduleForm({ ...rescheduleForm, ends_at: e.target.value })}
+                          className={input} required />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-stone-600 mb-1">Дедлайн регистрации</label>
+                        <input type="datetime-local" value={rescheduleForm.reg_deadline}
+                          onChange={e => setRescheduleForm({ ...rescheduleForm, reg_deadline: e.target.value })}
+                          className={input} required />
+                      </div>
+                      <div className="md:col-span-3 flex gap-2">
+                        <button type="submit" className={btnSm}>Сохранить и оповестить участников</button>
+                        <button type="button" onClick={() => setReschedulingId(null)}
+                          className="text-sm text-stone-500 hover:text-stone-700 px-3 py-1.5">Отмена</button>
+                      </div>
+                    </form>
+                  )}
                 </div>
               ))}
             </div>

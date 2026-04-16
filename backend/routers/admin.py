@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, BackgroundTasks
 from sqlalchemy.orm import Session
 from database import get_db
 from models.content import Post, Page, EventResult, EventPhoto
@@ -61,6 +61,88 @@ def update_event_status(event_id: UUID, status: str, db: Session = Depends(get_d
     event.status = status
     db.commit()
     return {"ok": True}
+
+
+class EventReschedule(BaseModel):
+    starts_at: datetime
+    ends_at: datetime
+    reg_deadline: datetime
+
+
+@router.patch("/events/{event_id}/reschedule")
+def reschedule_event(
+    event_id: UUID,
+    data: EventReschedule,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    admin=Depends(get_current_admin)
+):
+    from models.team import Team
+    from models.user import User
+    from core.email import send_reschedule_email
+
+    event = db.query(Event).filter(Event.id == event_id).first()
+    if not event:
+        raise HTTPException(404, "Мероприятие не найдено")
+
+    event.starts_at = data.starts_at
+    event.ends_at = data.ends_at
+    event.reg_deadline = data.reg_deadline
+    db.commit()
+    db.refresh(event)
+
+    # Собираем email всех участников команд этого мероприятия
+    teams = db.query(Team).filter(Team.event_id == event_id).all()
+    notified = set()
+    for team in teams:
+        for member in team.members:
+            email = None
+            if member.user_id:
+                u = db.query(User).filter(User.id == member.user_id).first()
+                if u:
+                    email = u.email
+            elif member.guest_email:
+                email = member.guest_email
+            if email and email not in notified:
+                notified.add(email)
+                background_tasks.add_task(
+                    _send_safe, send_reschedule_email,
+                    email, event.title, team.name,
+                    event.starts_at, event.reg_deadline
+                )
+
+    return {"ok": True, "notified": len(notified)}
+
+
+@router.post("/events/{event_id}/notify-new")
+def notify_new_event(
+    event_id: UUID,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    admin=Depends(get_current_admin)
+):
+    from models.user import User
+    from core.email import send_new_event_email
+
+    event = db.query(Event).filter(Event.id == event_id).first()
+    if not event:
+        raise HTTPException(404, "Мероприятие не найдено")
+
+    users = db.query(User).filter(User.is_verified == True).all()
+    for u in users:
+        background_tasks.add_task(
+            _send_safe, send_new_event_email,
+            u.email, event.title, event.starts_at, event.reg_deadline, str(event_id)
+        )
+
+    return {"ok": True, "notified": len(users)}
+
+
+def _send_safe(fn, *args):
+    try:
+        fn(*args)
+    except Exception as e:
+        print(f"[EMAIL ERROR] {type(e).__name__}: {e}")
 
 # --- Новости ---
 
@@ -877,10 +959,40 @@ def upsert_page(slug: str, data: PageUpsert, db: Session = Depends(get_db), admi
 # --- Публикация результатов ---
 
 @router.post("/events/{event_id}/publish-results")
-def publish_results(event_id: UUID, db: Session = Depends(get_db), admin=Depends(get_current_admin)):
-    from models.content import EventQuestion
+def publish_results(event_id: UUID, background_tasks: BackgroundTasks, db: Session = Depends(get_db), admin=Depends(get_current_admin)):
+    from models.content import EventQuestion, EventResult
+    from models.team import Team
+    from models.user import User
+    from core.email import send_results_email
+
     updated = db.query(EventQuestion).filter(EventQuestion.event_id == event_id).update({"is_published": True})
     db.commit()
+
+    event = db.query(Event).filter(Event.id == event_id).first()
+    if event:
+        teams = db.query(Team).filter(Team.event_id == event_id).all()
+        results = db.query(EventResult).filter(EventResult.event_id == event_id).all()
+        result_map = {str(r.team_id): r for r in results}
+        notified = set()
+        for team in teams:
+            r = result_map.get(str(team.id))
+            rank = r.rank if r else None
+            score = r.score if r else None
+            for member in team.members:
+                email = None
+                if member.user_id:
+                    u = db.query(User).filter(User.id == member.user_id).first()
+                    if u:
+                        email = u.email
+                elif member.guest_email:
+                    email = member.guest_email
+                if email and email not in notified:
+                    notified.add(email)
+                    background_tasks.add_task(
+                        _send_safe, send_results_email,
+                        email, event.title, team.name, rank, score, str(event_id)
+                    )
+
     return {"published": updated}
 
 @router.post("/events/{event_id}/unpublish-results")

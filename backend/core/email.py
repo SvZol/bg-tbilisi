@@ -64,6 +64,67 @@ def send_verification_email(to: str, token: str):
     send_email(to, "Подтвердите ваш email — ТБИссектриса", html)
 
 
+def send_new_event_email(to: str, title: str, starts_at, reg_deadline, event_id: str):
+    from datetime import datetime
+    starts = starts_at.strftime('%d.%m.%Y') if hasattr(starts_at, 'strftime') else str(starts_at)[:10]
+    deadline = reg_deadline.strftime('%d.%m.%Y') if hasattr(reg_deadline, 'strftime') else str(reg_deadline)[:10]
+    link = f"{FRONTEND_URL}/events/{event_id}"
+    html = f"""
+    <div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;padding:24px;">
+      <img src="{FRONTEND_URL}/logo-text.PNG" alt="ТБИссектриса" style="height:40px;margin-bottom:20px;" />
+      <h2 style="color:#dc2626;">Скоро игра!</h2>
+      <p style="color:#44403c;">Привет! У нас новое мероприятие — <strong>«{title}»</strong> 🎉</p>
+      <p style="color:#44403c;">📅 <strong>Когда:</strong> {starts}<br>
+      ⏰ <strong>Успей зарегистрировать команду до:</strong> {deadline}</p>
+      <a href="{link}"
+         style="display:inline-block;background:#dc2626;color:#fff;padding:12px 28px;
+                border-radius:10px;text-decoration:none;font-weight:bold;margin:16px 0;">
+        Зарегистрироваться →
+      </a>
+      <p style="color:#a8a29e;font-size:13px;">До встречи на улицах Тбилиси!<br>Команда ТБИссектрисы</p>
+    </div>
+    """
+    send_email(to, f"Скоро игра! — ТБИссектриса", html)
+
+
+def send_reschedule_email(to: str, title: str, team_name: str, starts_at, reg_deadline):
+    starts = starts_at.strftime('%d.%m.%Y') if hasattr(starts_at, 'strftime') else str(starts_at)[:10]
+    deadline = reg_deadline.strftime('%d.%m.%Y') if hasattr(reg_deadline, 'strftime') else str(reg_deadline)[:10]
+    html = f"""
+    <div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;padding:24px;">
+      <img src="{FRONTEND_URL}/logo-text.PNG" alt="ТБИссектриса" style="height:40px;margin-bottom:20px;" />
+      <h2 style="color:#dc2626;">Важно: «{title}» переносится</h2>
+      <p style="color:#44403c;">Привет! Сообщаем, что мероприятие <strong>«{title}»</strong> переносится.</p>
+      <p style="color:#44403c;">📅 <strong>Новая дата:</strong> {starts}<br>
+      ⏰ <strong>Регистрация продлена до:</strong> {deadline}</p>
+      <p style="color:#44403c;">Ваша команда <strong>«{team_name}»</strong> остаётся в игре — ничего делать не нужно.</p>
+      <p style="color:#a8a29e;font-size:13px;">До встречи!<br>Команда ТБИссектрисы</p>
+    </div>
+    """
+    send_email(to, f"Важно: «{title}» переносится", html)
+
+
+def send_results_email(to: str, title: str, team_name: str, rank: int | None, score, event_id: str):
+    link = f"{FRONTEND_URL}/events/{event_id}"
+    rank_str = f"место {rank}" if rank else "—"
+    score_str = str(score) if score is not None else "—"
+    html = f"""
+    <div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;padding:24px;">
+      <img src="{FRONTEND_URL}/logo-text.PNG" alt="ТБИссектриса" style="height:40px;margin-bottom:20px;" />
+      <h2 style="color:#dc2626;">Результаты «{title}» опубликованы!</h2>
+      <p style="color:#44403c;">Привет! Результаты мероприятия <strong>«{title}»</strong> уже на сайте.</p>
+      <p style="color:#44403c;">🏆 Ваша команда <strong>«{team_name}»</strong>: {rank_str}, баллы: {score_str}</p>
+      <a href="{link}"
+         style="display:inline-block;background:#dc2626;color:#fff;padding:12px 28px;
+                border-radius:10px;text-decoration:none;font-weight:bold;margin:16px 0;">
+        Смотреть результаты →
+      </a>
+      <p style="color:#a8a29e;font-size:13px;">Спасибо что играли с нами!<br>Команда ТБИссектрисы</p>
+    </div>
+    """
+    send_email(to, f"Результаты «{title}» опубликованы!", html)
+
+
 def send_reset_email(to: str, token: str):
     link = f"{FRONTEND_URL}/reset-password?token={token}"
     html = f"""
