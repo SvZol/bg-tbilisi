@@ -86,13 +86,8 @@ export default function AdminPage() {
 
   async function loadEventData(eventId: string) {
     setSelectedEventId(eventId)
-    const [resultsRes, teamsRes] = await Promise.all([
-      api.get(`/admin/results/${eventId}`),
-      api.get(`/admin/teams/${eventId}`),
-    ])
-    setEventResults(resultsRes.data)
+    const teamsRes = await api.get(`/admin/teams/${eventId}`)
     setEventTeams(teamsRes.data)
-    setResultForm({ team_id: '', rank: '', score: '', notes: '' })
   }
 
   async function loadQuestionsData(eventId: string) {
