@@ -178,8 +178,12 @@ export default function AdminPage() {
   }
 
   async function changeTeamCategory(teamId: string, category: string) {
-    await api.patch(`/admin/teams/${teamId}/category?category=${category}`)
-    setEventTeams(eventTeams.map(t => t.id === teamId ? { ...t, category } : t))
+    try {
+      await api.patch(`/admin/teams/${teamId}/category?category=${category}`)
+      setEventTeams(prev => prev.map(t => t.id === teamId ? { ...t, category } : t))
+    } catch (err: any) {
+      alert(err?.response?.data?.detail || 'Ошибка изменения зачёта')
+    }
   }
 
   async function deleteMember(teamId: string, memberId: string) {

@@ -23,8 +23,9 @@ function CategoryToggle({ teamId, value, onChange }: {
     try {
       await api.patch(`/teams/${teamId}`, { category: next })
       onChange(next)
-    } catch { /* ignore */ }
-    finally { setSaving(false) }
+    } catch (err: any) {
+      alert(err?.response?.data?.detail || 'Ошибка изменения зачёта')
+    } finally { setSaving(false) }
   }
 
   const isAdult = value === 'adult'

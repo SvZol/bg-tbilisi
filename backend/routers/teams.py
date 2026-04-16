@@ -143,7 +143,12 @@ def update_team(team_id: UUID, data: TeamUpdate, db: Session = Depends(get_db), 
     team = db.query(Team).filter(Team.id == team_id).first()
     if not team:
         raise HTTPException(status_code=404, detail="Команда не найдена")
-    if str(team.created_by) != str(user_id):
+    is_captain = str(team.created_by) == str(user_id) or db.query(TeamMember).filter(
+        TeamMember.team_id == team_id,
+        TeamMember.user_id == user_id,
+        TeamMember.role == "captain"
+    ).first() is not None
+    if not is_captain:
         raise HTTPException(status_code=403, detail="Только капитан может редактировать команду")
     if data.name:
         team.name = data.name
