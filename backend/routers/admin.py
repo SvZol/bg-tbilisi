@@ -308,6 +308,7 @@ def get_event_teams(event_id: UUID, db: Session = Depends(get_db), admin=Depends
             "id": str(team.id),
             "name": team.name,
             "status": team.status,
+            "category": team.category or "adult",
             "members": members_data
         })
 
