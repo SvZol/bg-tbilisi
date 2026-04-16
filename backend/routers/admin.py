@@ -970,6 +970,7 @@ def publish_results(event_id: UUID, background_tasks: BackgroundTasks, db: Sessi
 
     event = db.query(Event).filter(Event.id == event_id).first()
     if event:
+        from models.content import TeamQuestionResult, EventQuestion as EQ
         teams = db.query(Team).filter(Team.event_id == event_id).all()
         results = db.query(EventResult).filter(EventResult.event_id == event_id).all()
         result_map = {str(r.team_id): r for r in results}
@@ -977,7 +978,15 @@ def publish_results(event_id: UUID, background_tasks: BackgroundTasks, db: Sessi
         for team in teams:
             r = result_map.get(str(team.id))
             rank = r.rank if r else None
-            score = r.score if r else None
+            # Если score нет в EventResult — считаем из TeamQuestionResult
+            if r and r.score is not None:
+                score = r.score
+            else:
+                pts = db.query(TeamQuestionResult).join(EQ).filter(
+                    TeamQuestionResult.team_id == team.id,
+                    EQ.event_id == event_id
+                ).all()
+                score = sum(p.points_earned for p in pts) if pts else None
             for member in team.members:
                 email = None
                 if member.user_id:

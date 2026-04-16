@@ -180,6 +180,7 @@ def get_team_results(team_id: UUID, db: Session = Depends(get_db)):
         db.query(TeamQuestionResult)
         .join(EventQuestion)
         .filter(TeamQuestionResult.team_id == team_id)
+        .filter(EventQuestion.is_published == True)
         .all()
     )
 
