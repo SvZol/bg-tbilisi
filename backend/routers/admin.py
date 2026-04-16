@@ -328,6 +328,9 @@ def set_team_category(team_id: UUID, category: str, db: Session = Depends(get_db
 @router.delete("/teams/{team_id}")
 def delete_team(team_id: UUID, db: Session = Depends(get_db), admin=Depends(get_current_admin)):
     from models.team import Team, TeamMember
+    from models.content import EventResult, TeamQuestionResult
+    db.query(TeamQuestionResult).filter(TeamQuestionResult.team_id == team_id).delete()
+    db.query(EventResult).filter(EventResult.team_id == team_id).delete()
     db.query(TeamMember).filter(TeamMember.team_id == team_id).delete()
     db.query(Team).filter(Team.id == team_id).delete()
     db.commit()
