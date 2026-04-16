@@ -235,7 +235,7 @@ export default function AdminPage() {
   function handleDownloadTemplate() {
     if (!selectedEventId) return
     const token = localStorage.getItem('token')
-    const url = `http://localhost:8000/admin/events/${selectedEventId}/results-template`
+    const url = `${API_URL}/admin/events/${selectedEventId}/results-template`
     fetch(url, { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.blob())
       .then(blob => {
