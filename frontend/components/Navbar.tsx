@@ -62,12 +62,12 @@ export default function Navbar() {
     <nav className="bg-white border-b-2 border-red-100">
       <div className="max-w-5xl mx-auto px-4">
         {/* Десктоп */}
-        <div className="hidden md:flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2 group">
-            <img src="/logo-icon.png" alt="" className="h-12 w-auto" />
-            <img src="/logo-text.png" alt="ТБИссектриса" className="h-[90px] w-auto" />
+        <div className="hidden md:flex items-center justify-between gap-4">
+          <Link href="/" className="flex items-center gap-2 shrink-0">
+            <img src="/logo-icon.png" alt="" className="h-10 w-auto" />
+            <img src="/logo-text.png" alt="ТБИссектриса" className="h-16 w-auto" />
           </Link>
-          <div className="flex items-center gap-5 text-sm">
+          <div className="flex items-center gap-5 text-sm flex-wrap justify-end">
             {links}
           </div>
         </div>

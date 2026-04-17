@@ -5,7 +5,7 @@ import Link from 'next/link'
 import api from '@/lib/api'
 import { useAuth } from '@/context/AuthContext'
 
-interface TeamMember { id: string; user_id: string | null; guest_name: string | null; role: string; is_registered: boolean }
+interface TeamMember { id: string; user_id: string | null; guest_name: string | null; full_name: string | null; role: string; is_registered: boolean }
 interface Team { id: string; name: string; status: string; category: string; event_id: string; members: TeamMember[] }
 interface Event { id: string; title: string; starts_at: string; status: string }
 interface TeamWithEvent { team: Team; event: Event | null }
@@ -104,7 +104,7 @@ function TeamCard({ teamWithEvent, isCaptain, onCategoryChange }: {
       <div className="flex flex-wrap gap-2">
         {team.members.map(m => (
           <span key={m.id} className="text-xs bg-stone-100 text-stone-700 px-2 py-1 rounded-full">
-            {m.guest_name || 'Участник'} {m.role === 'captain' ? '👑' : ''}
+            {m.full_name || m.guest_name || 'Участник'} {m.role === 'captain' ? '👑' : ''}
           </span>
         ))}
       </div>

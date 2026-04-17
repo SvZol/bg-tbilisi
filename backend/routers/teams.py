@@ -27,6 +27,7 @@ class TeamMemberOut(BaseModel):
     user_id: Optional[UUID]
     guest_name: Optional[str]
     guest_email: Optional[str]
+    full_name: Optional[str] = None
     role: str
     is_registered: bool
 
@@ -91,9 +92,38 @@ def create_team(data: TeamCreate, db: Session = Depends(get_db), user_id: str = 
     db.refresh(team)
     return team
 
-@router.get("/event/{event_id}", response_model=list[TeamOut])
+@router.get("/event/{event_id}")
 def list_teams(event_id: UUID, db: Session = Depends(get_db)):
-    return db.query(Team).filter(Team.event_id == event_id).all()
+    from models.user import User
+    teams = db.query(Team).filter(Team.event_id == event_id).all()
+    result = []
+    for team in teams:
+        members = []
+        for m in team.members:
+            full_name = None
+            if m.user_id:
+                u = db.query(User).filter(User.id == m.user_id).first()
+                if u:
+                    full_name = u.full_name
+            members.append({
+                "id": str(m.id),
+                "user_id": str(m.user_id) if m.user_id else None,
+                "guest_name": m.guest_name,
+                "guest_email": m.guest_email,
+                "full_name": full_name,
+                "role": m.role,
+                "is_registered": m.is_registered,
+            })
+        result.append({
+            "id": str(team.id),
+            "event_id": str(team.event_id),
+            "created_by": str(team.created_by),
+            "name": team.name,
+            "status": team.status,
+            "category": team.category or "adult",
+            "members": members,
+        })
+    return result
 
 @router.post("/{team_id}/members")
 def add_member(team_id: UUID, member: MemberInput, db: Session = Depends(get_db), user_id: str = Depends(get_current_user)):
