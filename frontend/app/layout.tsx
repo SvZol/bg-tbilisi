@@ -13,7 +13,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: 'ТБИссектриса',
     description: 'Городская семейная игра с элементами ориентирования и математики',
-    images: ['/logo-icon.PNG'],
+    images: ['/logo-icon.png'],
   },
 }
 
