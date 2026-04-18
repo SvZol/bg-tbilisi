@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation'
 import api from '@/lib/api'
 import { useAuth } from '@/context/AuthContext'
 
-interface Event { id: string; title: string; status: string; starts_at: string; ends_at: string; reg_deadline: string }
+interface Event { id: string; title: string; status: string; starts_at: string; ends_at: string; reg_deadline: string; city?: string; min_team_size: number; max_team_size: number }
 interface Post { id: string; title: string; content: string; is_published: boolean; image_filename: string | null; created_at: string }
 interface TeamMember { id: string; user_id: string | null; guest_name: string | null; guest_email: string | null; display_name: string | null; display_email: string | null; role: string; is_registered: boolean }
 interface Team { id: string; name: string; status: string; category: string; members: TeamMember[] }
