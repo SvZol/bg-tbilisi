@@ -70,6 +70,8 @@ export default function AdminPage() {
   const [importResMsg, setImportResMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
   const [importingKp, setImportingKp] = useState(false)
   const [importingRes, setImportingRes] = useState(false)
+  const [importTeamsMsg, setImportTeamsMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
+  const [importingTeams, setImportingTeams] = useState(false)
   const [publishMsg, setPublishMsg] = useState('')
 
   const [infoForm, setInfoForm] = useState({ title: '', content: '', is_published: true })
@@ -570,7 +572,32 @@ export default function AdminPage() {
           {eventSelector(loadEventData)}
           {selectedEventId && (
             <div className="space-y-4">
-              <h3 className="font-bold text-stone-900">Команды ({eventTeams.length})</h3>
+              <div className="flex items-center justify-between flex-wrap gap-3">
+                <h3 className="font-bold text-stone-900">Команды ({eventTeams.length})</h3>
+                <div className="flex items-center gap-2">
+                  <label className={`${btnSm} cursor-pointer ${importingTeams ? 'opacity-50' : ''}`}>
+                    {importingTeams ? 'Импорт...' : '↑ Импорт из Excel'}
+                    <input type="file" accept=".xlsx" className="hidden" disabled={importingTeams}
+                      onChange={async e => {
+                        const f = e.target.files?.[0]; if (!f) return
+                        setImportingTeams(true); setImportTeamsMsg(null)
+                        const form = new FormData(); form.append('file', f)
+                        try {
+                          const res = await api.post(`/admin/events/${selectedEventId}/import-teams-excel`, form)
+                          setImportTeamsMsg({ type: 'ok', text: `Добавлено ${res.data.created} команд, пропущено ${res.data.skipped}` })
+                          await loadEventData(selectedEventId)
+                        } catch (err: any) {
+                          setImportTeamsMsg({ type: 'err', text: err?.response?.data?.detail || 'Ошибка импорта' })
+                        } finally { setImportingTeams(false); e.target.value = '' }
+                      }} />
+                  </label>
+                </div>
+              </div>
+              {importTeamsMsg && (
+                <p className={`text-sm font-medium ${importTeamsMsg.type === 'ok' ? 'text-green-700' : 'text-red-600'}`}>
+                  {importTeamsMsg.text}
+                </p>
+              )}
               {eventTeams.length === 0 ? <p className="text-stone-500">Команд пока нет</p> : eventTeams.map(team => (
                 <div key={team.id} className={card}>
                   <div className="flex justify-between items-center mb-3 gap-3">

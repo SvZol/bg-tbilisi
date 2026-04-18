@@ -676,6 +676,128 @@ async def import_kp_excel(
     return {"created": created, "message": f"Создано {created} вопросов (задания + задачи)"}
 
 
+# --- Импорт команд из Google-формы (Excel) ---
+
+@router.post("/events/{event_id}/import-teams-excel")
+async def import_teams_excel(
+    event_id: UUID,
+    file: UploadFile = File(...),
+    background_tasks: BackgroundTasks = None,
+    db: Session = Depends(get_db),
+    admin=Depends(get_current_admin),
+):
+    from models.team import Team, TeamMember
+    from models.user import User
+    from core.security import hash_password
+    from core.email import send_invite_email
+    import openpyxl, io, secrets, string
+
+    event = db.query(Event).filter(Event.id == event_id).first()
+    if not event:
+        raise HTTPException(404, "Мероприятие не найдено")
+
+    content = await file.read()
+    wb = openpyxl.load_workbook(io.BytesIO(content))
+    ws = wb.active
+
+    created = []
+    skipped = []
+
+    for row in ws.iter_rows(min_row=2, values_only=True):
+        if not row[0]:  # пустая строка
+            continue
+
+        team_name = str(row[1]).strip() if row[1] else None
+        member_count = int(row[2]) if row[2] and str(row[2]).isdigit() else None
+        category_raw = str(row[3]).strip() if row[3] else ""
+        contact = str(row[4]).strip() if row[4] else None
+
+        if not team_name:
+            continue
+
+        # Определяем зачёт
+        category = "child" if "дети" in category_raw.lower() else "adult"
+
+        # Проверяем дубликат
+        existing = db.query(Team).filter(Team.event_id == event_id, Team.name == team_name).first()
+        if existing:
+            skipped.append(f"{team_name} (уже есть)")
+            continue
+
+        # Определяем email (если контакт содержит @)
+        email = None
+        telegram = None
+        if contact and "@" in contact and "t.me" not in contact:
+            email = contact
+        else:
+            telegram = contact
+
+        # Создаём или находим пользователя по email
+        user = None
+        temp_password = None
+        if email:
+            user = db.query(User).filter(User.email == email).first()
+            if not user:
+                # Генерируем временный пароль
+                alphabet = string.ascii_letters + string.digits
+                temp_password = "".join(secrets.choice(alphabet) for _ in range(10))
+                user = User(
+                    email=email,
+                    password_hash=hash_password(temp_password),
+                    full_name=team_name,  # временное имя
+                    is_verified=True,  # уже верифицирован через форму
+                    role="user",
+                )
+                db.add(user)
+                db.flush()
+
+        # Создаём команду
+        team = Team(
+            event_id=event_id,
+            created_by=user.id if user else admin.id,
+            name=team_name,
+            category=category,
+            member_count=member_count,
+            captain_phone=telegram,  # telegram в поле телефона если нет email
+            description=f"Импорт из формы. Контакт: {contact}" if contact else "Импорт из формы",
+        )
+        db.add(team)
+        db.flush()
+
+        # Добавляем капитана
+        captain = TeamMember(
+            team_id=team.id,
+            user_id=user.id if user else None,
+            guest_name=team_name if not user else None,
+            role="captain",
+            is_registered=user is not None,
+        )
+        db.add(captain)
+
+        # Отправляем письмо если есть email и новый пользователь
+        if email and temp_password and background_tasks:
+            background_tasks.add_task(
+                _send_safe, send_invite_email,
+                email, team_name, event.title, temp_password, str(event_id)
+            )
+
+        created.append({
+            "team": team_name,
+            "category": category,
+            "members": member_count,
+            "contact": contact,
+            "email_sent": bool(email and temp_password),
+        })
+
+    db.commit()
+    return {
+        "created": len(created),
+        "skipped": len(skipped),
+        "teams": created,
+        "skipped_names": skipped,
+    }
+
+
 @router.post("/events/{event_id}/import-results-excel")
 async def import_results_excel(
     event_id: UUID,

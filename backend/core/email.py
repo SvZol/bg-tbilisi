@@ -125,6 +125,30 @@ def send_results_email(to: str, title: str, team_name: str, rank: int | None, sc
     send_email(to, f"Результаты «{title}» опубликованы!", html)
 
 
+def send_invite_email(to: str, team_name: str, event_title: str, temp_password: str, event_id: str):
+    link = f"{FRONTEND_URL}/login"
+    html = f"""
+    <div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;padding:24px;">
+      <img src="{FRONTEND_URL}/logo-text.png" alt="ТБИссектриса" style="height:40px;margin-bottom:20px;" />
+      <h2 style="color:#dc2626;">Привет от ТБИссектрисы!</h2>
+      <p style="color:#44403c;">Ваша команда <strong>«{team_name}»</strong> зарегистрирована на <strong>«{event_title}»</strong> 🎉</p>
+      <p style="color:#44403c;">Мы создали для вас аккаунт на сайте — зайдите и заполните данные команды:</p>
+      <table style="background:#f5f5f4;border-radius:10px;padding:16px;margin:16px 0;width:100%;">
+        <tr><td style="color:#78716c;font-size:13px;">Email:</td><td style="font-weight:bold;color:#1c1917;">{to}</td></tr>
+        <tr><td style="color:#78716c;font-size:13px;">Пароль:</td><td style="font-weight:bold;color:#1c1917;font-size:18px;letter-spacing:2px;">{temp_password}</td></tr>
+      </table>
+      <a href="{link}"
+         style="display:inline-block;background:#dc2626;color:#fff;padding:12px 28px;
+                border-radius:10px;text-decoration:none;font-weight:bold;margin:8px 0;">
+        Войти на сайт →
+      </a>
+      <p style="color:#78716c;font-size:13px;margin-top:20px;">После входа вы сможете: изменить пароль, уточнить состав команды и следить за результатами.</p>
+      <p style="color:#a8a29e;font-size:13px;">До встречи на улицах Тбилиси!<br>Команда ТБИссектрисы</p>
+    </div>
+    """
+    send_email(to, f"Ваша команда «{team_name}» зарегистрирована!", html)
+
+
 def send_reset_email(to: str, token: str):
     link = f"{FRONTEND_URL}/reset-password?token={token}"
     html = f"""
