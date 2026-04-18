@@ -1,6 +1,7 @@
 import secrets
 from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from database import get_db
 from models.user import User
@@ -138,3 +139,42 @@ def reset_password(token: str, new_password: str, db: Session = Depends(get_db))
     user.reset_token_expires = None
     db.commit()
     return {"ok": True, "message": "Пароль успешно изменён"}
+
+
+# --- Смена пароля авторизованным пользователем ---
+
+class ChangePassword(BaseModel):
+    current_password: str
+    new_password: str
+
+@router.post("/change-password")
+def change_password(data: ChangePassword, db: Session = Depends(get_db), user_id: str = Depends(get_current_user)):
+    from pydantic import BaseModel as _BM
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(404, "Пользователь не найден")
+    if not verify_password(data.current_password, user.password_hash):
+        raise HTTPException(400, "Неверный текущий пароль")
+    if len(data.new_password) < 6:
+        raise HTTPException(400, "Новый пароль должен быть минимум 6 символов")
+    user.password_hash = hash_password(data.new_password)
+    db.commit()
+    return {"ok": True}
+
+
+class UpdateProfile(BaseModel):
+    full_name: str | None = None
+    phone: str | None = None
+
+@router.patch("/me")
+def update_profile(data: UpdateProfile, db: Session = Depends(get_db), user_id: str = Depends(get_current_user)):
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(404, "Пользователь не найден")
+    if data.full_name is not None:
+        user.full_name = data.full_name
+    if data.phone is not None:
+        user.phone = data.phone
+    db.commit()
+    db.refresh(user)
+    return user

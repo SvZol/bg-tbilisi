@@ -37,7 +37,10 @@ export default function Navbar() {
               Админ
             </Link>
           )}
-          <span className="text-stone-400 text-sm hidden md:inline">{user.full_name}</span>
+          <Link href="/profile" onClick={() => setOpen(false)} className="text-stone-400 hover:text-red-600 text-sm transition-colors md:inline hidden">{user.full_name}</Link>
+          <Link href="/profile" onClick={() => setOpen(false)} className="text-stone-700 hover:text-red-600 font-medium transition-colors uppercase text-sm tracking-wide md:hidden">
+            Профиль
+          </Link>
           <button onClick={handleSignOut}
             className="text-stone-400 hover:text-red-500 transition-colors text-sm uppercase tracking-wide text-left">
             Выйти
