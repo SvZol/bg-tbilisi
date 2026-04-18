@@ -1046,13 +1046,16 @@ export default function AdminPage() {
                     <input value={infoForm.title} onChange={e => setInfoForm({ ...infoForm, title: e.target.value })} className={input} required />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-stone-700 mb-1">Содержимое</label>
+                    <label className="block text-sm font-medium text-stone-700 mb-1">
+                      Содержимое
+                      <span className="ml-2 text-xs font-normal text-stone-400">поддерживается Markdown — **жирный**, *курсив*, [ссылка](url), # заголовок</span>
+                    </label>
                     <textarea
                       value={infoForm.content}
                       onChange={e => setInfoForm({ ...infoForm, content: e.target.value })}
                       rows={20}
                       className={`${input} font-mono text-sm`}
-                      placeholder="Введите правила, контакты организаторов..."
+                      placeholder={'Пример:\n\n# О проекте\n\nТБИссектриса — городская игра.\n\n[Наш Telegram](https://t.me/example)\n\n**Контакты:** example@email.com'}
                     />
                   </div>
                   <label className="flex items-center gap-2 text-sm text-stone-700 cursor-pointer">
