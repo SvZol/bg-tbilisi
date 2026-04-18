@@ -41,7 +41,9 @@ export default function AdminPage() {
   const [users, setUsers] = useState<AdminUser[]>([])
   const [usersLoaded, setUsersLoaded] = useState(false)
 
-  const [eventForm, setEventForm] = useState({ title: '', description: '', starts_at: '', ends_at: '', reg_deadline: '', min_team_size: 2, max_team_size: 5 })
+  const [eventForm, setEventForm] = useState({ title: '', description: '', city: '', starts_at: '', ends_at: '', reg_deadline: '', min_team_size: 2, max_team_size: 5 })
+  const [editingEventId, setEditingEventId] = useState<string | null>(null)
+  const [editEventForm, setEditEventForm] = useState({ min_team_size: 2, max_team_size: 5, city: '' })
   const [postForm, setPostForm] = useState({ title: '', content: '', is_published: false })
   const [eventError, setEventError] = useState('')
   const [postError, setPostError] = useState('')
@@ -104,7 +106,7 @@ export default function AdminPage() {
     try {
       const res = await api.post('/admin/events', eventForm)
       setEvents([...events, res.data])
-      setEventForm({ title: '', description: '', starts_at: '', ends_at: '', reg_deadline: '', min_team_size: 2, max_team_size: 5 })
+      setEventForm({ title: '', description: '', city: '', starts_at: '', ends_at: '', reg_deadline: '', min_team_size: 2, max_team_size: 5 })
     } catch { setEventError('Ошибка при создании мероприятия') }
   }
 
@@ -370,6 +372,10 @@ export default function AdminPage() {
                   <input value={eventForm.description} onChange={e => setEventForm({ ...eventForm, description: e.target.value })} className={input} />
                 </div>
                 <div>
+                  <label className="block text-sm font-medium text-stone-700 mb-1">Город</label>
+                  <input value={eventForm.city} onChange={e => setEventForm({ ...eventForm, city: e.target.value })} className={input} placeholder="Тбилиси" />
+                </div>
+                <div>
                   <label className="block text-sm font-medium text-stone-700 mb-1">Начало</label>
                   <input type="datetime-local" value={eventForm.starts_at} onChange={e => setEventForm({ ...eventForm, starts_at: e.target.value })} className={input} required />
                 </div>
@@ -426,8 +432,47 @@ export default function AdminPage() {
                         className="text-sm border border-stone-300 px-3 py-1.5 rounded-xl hover:border-red-400 text-stone-700 transition-colors">
                         Оповестить всех
                       </button>
+                      <button onClick={() => {
+                        setEditingEventId(ev.id)
+                        setEditEventForm({ min_team_size: ev.min_team_size, max_team_size: ev.max_team_size, city: (ev as any).city || '' })
+                      }}
+                        className="text-sm border border-stone-300 px-3 py-1.5 rounded-xl hover:border-red-400 text-stone-700 transition-colors">
+                        Изменить
+                      </button>
                     </div>
                   </div>
+
+                  {editingEventId === ev.id && (
+                    <div className="mt-4 pt-4 border-t border-stone-200 grid grid-cols-1 md:grid-cols-3 gap-3">
+                      <div>
+                        <label className="block text-xs font-medium text-stone-600 mb-1">Город</label>
+                        <input value={editEventForm.city}
+                          onChange={e => setEditEventForm({ ...editEventForm, city: e.target.value })}
+                          className={input} placeholder="Тбилиси" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-stone-600 mb-1">Мин. участников</label>
+                        <input type="number" value={editEventForm.min_team_size}
+                          onChange={e => setEditEventForm({ ...editEventForm, min_team_size: +e.target.value })}
+                          className={input} />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-stone-600 mb-1">Макс. участников</label>
+                        <input type="number" value={editEventForm.max_team_size}
+                          onChange={e => setEditEventForm({ ...editEventForm, max_team_size: +e.target.value })}
+                          className={input} />
+                      </div>
+                      <div className="md:col-span-3 flex gap-2">
+                        <button onClick={async () => {
+                          await api.patch(`/admin/events/${ev.id}`, editEventForm)
+                          setEvents(events.map(e => e.id === ev.id ? { ...e, ...editEventForm } : e))
+                          setEditingEventId(null)
+                        }} className={btnSm}>Сохранить</button>
+                        <button onClick={() => setEditingEventId(null)}
+                          className="text-sm text-stone-500 hover:text-stone-700 px-3 py-1.5">Отмена</button>
+                      </div>
+                    </div>
+                  )}
 
                   {reschedulingId === ev.id && (
                     <form onSubmit={handleReschedule} className="mt-4 pt-4 border-t border-stone-200 grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -541,8 +586,8 @@ export default function AdminPage() {
                             : 'bg-violet-50 border-violet-300 text-violet-700'
                         }`}
                       >
-                        <option value="child">🧒 Детский</option>
-                        <option value="adult">🧑 Взрослый</option>
+                        <option value="child">Лосята (детский зачёт)</option>
+                        <option value="adult">Лоси (взрослый зачёт)</option>
                       </select>
                       <a href={`/teams/${team.id}/results`} target="_blank" rel="noreferrer"
                         className="text-xs text-red-700 hover:text-red-800 font-medium border border-red-200 px-2 py-0.5 rounded-lg">
@@ -602,8 +647,8 @@ export default function AdminPage() {
               ) : (
                 <>
                   {[
-                    { key: 'adult', label: '🧑 Взрослый зачёт', rows: scoreboard.adult },
-                    { key: 'child', label: '🧒 Детский зачёт',  rows: scoreboard.child },
+                    { key: 'adult', label: 'Лоси (взрослый зачёт)', rows: scoreboard.adult },
+                    { key: 'child', label: 'Лосята (детский зачёт)', rows: scoreboard.child },
                   ].map(({ key, label, rows }) => rows.length === 0 ? null : (
                     <div key={key}>
                       <h3 className="font-bold text-stone-700 mb-2">{label}</h3>

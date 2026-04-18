@@ -21,6 +21,7 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 class EventCreate(BaseModel):
     title: str
     description: str | None = None
+    city: str | None = None
     starts_at: datetime
     ends_at: datetime
     reg_deadline: datetime
@@ -31,6 +32,7 @@ class EventOut(BaseModel):
     id: UUID
     title: str
     description: str | None
+    city: str | None = None
     starts_at: datetime
     ends_at: datetime
     reg_deadline: datetime
@@ -41,6 +43,13 @@ class EventOut(BaseModel):
     class Config:
         from_attributes = True
 
+class EventEdit(BaseModel):
+    title: str | None = None
+    description: str | None = None
+    city: str | None = None
+    min_team_size: int | None = None
+    max_team_size: int | None = None
+
 @router.get("/events", response_model=list[EventOut])
 def list_all_events(db: Session = Depends(get_db), admin=Depends(get_current_admin)):
     return db.query(Event).order_by(Event.starts_at.desc()).all()
@@ -49,6 +58,20 @@ def list_all_events(db: Session = Depends(get_db), admin=Depends(get_current_adm
 def create_event(data: EventCreate, db: Session = Depends(get_db), admin=Depends(get_current_admin)):
     event = Event(**data.model_dump())
     db.add(event)
+    db.commit()
+    db.refresh(event)
+    return event
+
+@router.patch("/events/{event_id}", response_model=EventOut)
+def edit_event(event_id: UUID, data: EventEdit, db: Session = Depends(get_db), admin=Depends(get_current_admin)):
+    event = db.query(Event).filter(Event.id == event_id).first()
+    if not event:
+        raise HTTPException(status_code=404, detail="Мероприятие не найдено")
+    if data.title is not None: event.title = data.title
+    if data.description is not None: event.description = data.description
+    if data.city is not None: event.city = data.city
+    if data.min_team_size is not None: event.min_team_size = data.min_team_size
+    if data.max_team_size is not None: event.max_team_size = data.max_team_size
     db.commit()
     db.refresh(event)
     return event

@@ -7,6 +7,7 @@ interface Event {
   id: string
   title: string
   description: string
+  city: string | null
   starts_at: string
   ends_at: string
   reg_deadline: string
@@ -41,12 +42,13 @@ export default function HomePage() {
   return (
     <div className="space-y-16">
       {/* Hero */}
-      <section className="relative h-[480px] overflow-hidden rounded-3xl">
+      <section className="relative h-[300px] overflow-hidden rounded-3xl">
         {/* Фото города */}
         <img
           src="/picture.PNG"
           alt="Тбилиси"
-          className="absolute inset-0 w-full h-full object-cover"
+          className="absolute inset-0 w-full h-full object-cover object-center"
+          style={{ objectPosition: '50% 40%' }}
         />
         {/* Лёгкий оверлей */}
         <div className="absolute inset-0 bg-white/30" />
@@ -91,6 +93,7 @@ export default function HomePage() {
                 <p className="text-stone-500 text-sm mb-4 line-clamp-2">{event.description}</p>
                 <div className="text-xs text-stone-400 space-y-1 mb-3">
                   <p>{new Date(event.starts_at).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+                  {event.city && <p>📍 {event.city}</p>}
                   {event.status !== 'finished' && (
                     <p>Регистрация до {new Date(event.reg_deadline).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })}</p>
                   )}

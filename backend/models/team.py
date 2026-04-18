@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, DateTime, Boolean, ForeignKey
+from sqlalchemy import Column, String, DateTime, Boolean, ForeignKey, Integer, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from datetime import datetime, timezone
@@ -14,6 +14,10 @@ class Team(Base):
     name = Column(String, nullable=False)
     status = Column(String, default="registered")
     category = Column(String, default="adult")  # "adult" | "child"
+    captain_name = Column(String, nullable=True)
+    captain_phone = Column(String, nullable=True)
+    member_count = Column(Integer, nullable=True)
+    description = Column(Text, nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     event = relationship("Event", back_populates="teams")

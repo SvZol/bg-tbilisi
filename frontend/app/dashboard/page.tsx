@@ -40,7 +40,7 @@ function CategoryToggle({ teamId, value, onChange }: {
           : 'bg-violet-50 border-violet-300 text-violet-700 hover:bg-violet-100'
       } ${saving ? 'opacity-50 cursor-wait' : 'cursor-pointer'}`}
     >
-      {isAdult ? '🧑 Взрослый' : '🧒 Детский'}
+      {isAdult ? 'Лоси' : 'Лосята'}
       <span className="text-[10px] opacity-60">✎</span>
     </button>
   )
@@ -77,7 +77,7 @@ function TeamCard({ teamWithEvent, isCaptain, onCategoryChange }: {
                   ? 'bg-red-50 text-red-700'
                   : 'bg-violet-50 text-violet-600'
               }`}>
-                {(team.category || 'child') === 'adult' ? '🧑 Взрослый' : '🧒 Детский'}
+                {(team.category || 'child') === 'adult' ? 'Лоси (взрослый зачёт)' : 'Лосята (детский зачёт)'}
               </span>
             )}
           </div>

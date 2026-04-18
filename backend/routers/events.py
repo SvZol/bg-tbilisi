@@ -22,6 +22,7 @@ class EventOut(BaseModel):
     id: UUID
     title: str
     description: str | None
+    city: str | None = None
     starts_at: datetime
     ends_at: datetime
     reg_deadline: datetime
