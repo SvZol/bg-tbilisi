@@ -781,12 +781,26 @@ async def import_teams_excel(
                 email, team_name, event.title, temp_password, str(event_id)
             )
 
+        # Генерируем сообщение для Telegram если нет email
+        tg_message = None
+        if telegram and not email:
+            site_url = os.getenv("FRONTEND_URL", "https://tbi-ssector.run")
+            cat_label = "Лосята (детский зачёт)" if category == "child" else "Лоси (взрослый зачёт)"
+            tg_message = (
+                f"Привет! 👋 Ваша команда «{team_name}» ({cat_label}) зарегистрирована на игру «{event.title}».\n\n"
+                f"Зайдите на сайт, чтобы создать аккаунт и управлять командой:\n"
+                f"{site_url}/register\n\n"
+                f"После регистрации на сайте вы сможете видеть состав команды, результаты и получать уведомления об изменениях."
+            )
+
         created.append({
             "team": team_name,
             "category": category,
             "members": member_count,
             "contact": contact,
             "email_sent": bool(email and temp_password),
+            "telegram": telegram,
+            "telegram_message": tg_message,
         })
 
     db.commit()

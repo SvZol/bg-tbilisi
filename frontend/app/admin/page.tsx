@@ -72,6 +72,8 @@ export default function AdminPage() {
   const [importingRes, setImportingRes] = useState(false)
   const [importTeamsMsg, setImportTeamsMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
   const [importingTeams, setImportingTeams] = useState(false)
+  const [importTeamsResult, setImportTeamsResult] = useState<any[] | null>(null)
+  const [copiedIdx, setCopiedIdx] = useState<number | null>(null)
   const [publishMsg, setPublishMsg] = useState('')
 
   const [infoForm, setInfoForm] = useState({ title: '', content: '', is_published: true })
@@ -585,9 +587,11 @@ export default function AdminPage() {
                         try {
                           const res = await api.post(`/admin/events/${selectedEventId}/import-teams-excel`, form)
                           setImportTeamsMsg({ type: 'ok', text: `Добавлено ${res.data.created} команд, пропущено ${res.data.skipped}` })
+                          setImportTeamsResult(res.data.teams)
                           await loadEventData(selectedEventId)
                         } catch (err: any) {
                           setImportTeamsMsg({ type: 'err', text: err?.response?.data?.detail || 'Ошибка импорта' })
+                          setImportTeamsResult(null)
                         } finally { setImportingTeams(false); e.target.value = '' }
                       }} />
                   </label>
@@ -597,6 +601,34 @@ export default function AdminPage() {
                 <p className={`text-sm font-medium ${importTeamsMsg.type === 'ok' ? 'text-green-700' : 'text-red-600'}`}>
                   {importTeamsMsg.text}
                 </p>
+              )}
+              {importTeamsResult && importTeamsResult.some(t => t.telegram_message) && (
+                <div className={`${card} space-y-3`}>
+                  <h4 className="font-bold text-stone-900">Сообщения для Telegram</h4>
+                  <p className="text-sm text-stone-500">Скопируйте и отправьте каждому участнику вручную:</p>
+                  {importTeamsResult.filter(t => t.telegram_message).map((t, i) => (
+                    <div key={i} className="border border-stone-200 rounded-xl p-3 space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-sm font-semibold text-stone-800">{t.team}</span>
+                        <a href={`https://t.me/${t.telegram?.replace(/^@/, '').replace(/^t\.me\//, '')}`}
+                          target="_blank" rel="noreferrer"
+                          className="text-xs text-blue-600 hover:text-blue-700 font-medium">
+                          {t.telegram} ↗
+                        </a>
+                      </div>
+                      <pre className="text-xs text-stone-700 bg-stone-50 rounded-lg p-3 whitespace-pre-wrap font-sans">{t.telegram_message}</pre>
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(t.telegram_message)
+                          setCopiedIdx(i)
+                          setTimeout(() => setCopiedIdx(null), 2000)
+                        }}
+                        className={`text-xs px-3 py-1.5 rounded-lg font-medium transition-colors ${copiedIdx === i ? 'bg-green-100 text-green-700' : 'bg-stone-100 text-stone-700 hover:bg-stone-200'}`}>
+                        {copiedIdx === i ? '✓ Скопировано' : 'Копировать'}
+                      </button>
+                    </div>
+                  ))}
+                </div>
               )}
               {eventTeams.length === 0 ? <p className="text-stone-500">Команд пока нет</p> : eventTeams.map(team => (
                 <div key={team.id} className={card}>
