@@ -230,6 +230,58 @@ def update_team(team_id: UUID, data: TeamUpdate, db: Session = Depends(get_db), 
     db.refresh(team)
     return _team_to_dict(team, db)
 
+@router.get("/by-invite/{code}")
+def get_team_by_invite(code: str, db: Session = Depends(get_db)):
+    team = db.query(Team).filter(Team.invite_code == code).first()
+    if not team:
+        raise HTTPException(status_code=404, detail="Код не найден или уже использован")
+    return {
+        "id": str(team.id),
+        "name": team.name,
+        "event_id": str(team.event_id),
+        "category": team.category,
+        "captain_name": team.captain_name,
+    }
+
+
+class ClaimInput(BaseModel):
+    invite_code: str
+
+@router.post("/claim")
+def claim_team(data: ClaimInput, db: Session = Depends(get_db), user_id: str = Depends(get_current_user)):
+    team = db.query(Team).filter(Team.invite_code == data.invite_code).first()
+    if not team:
+        raise HTTPException(status_code=404, detail="Код не найден или уже использован")
+
+    # Проверяем что у команды ещё нет зарегистрированного владельца
+    existing_captain = db.query(TeamMember).filter(
+        TeamMember.team_id == team.id,
+        TeamMember.role == "captain",
+        TeamMember.is_registered == True,
+        TeamMember.user_id != None,
+    ).first()
+    if existing_captain:
+        raise HTTPException(status_code=400, detail="У команды уже есть владелец")
+
+    # Обновляем или создаём капитана
+    captain_member = db.query(TeamMember).filter(
+        TeamMember.team_id == team.id,
+        TeamMember.role == "captain",
+    ).first()
+    if captain_member:
+        captain_member.user_id = user_id
+        captain_member.is_registered = True
+        captain_member.guest_name = None
+    else:
+        db.add(TeamMember(team_id=team.id, user_id=user_id, role="captain", is_registered=True))
+
+    team.created_by = user_id
+    team.invite_code = None  # код одноразовый
+    db.commit()
+    db.refresh(team)
+    return _team_to_dict(team, db)
+
+
 @router.get("/{team_id}/public")
 def get_team_public(team_id: UUID, db: Session = Depends(get_db)):
     team = db.query(Team).filter(Team.id == team_id).first()

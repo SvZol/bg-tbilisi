@@ -8,6 +8,8 @@ migrations = [
     "ALTER TABLE teams ADD COLUMN IF NOT EXISTS captain_phone VARCHAR",
     "ALTER TABLE teams ADD COLUMN IF NOT EXISTS member_count INTEGER",
     "ALTER TABLE teams ADD COLUMN IF NOT EXISTS description TEXT",
+    "ALTER TABLE teams ADD COLUMN IF NOT EXISTS invite_code VARCHAR(12)",
+    "CREATE UNIQUE INDEX IF NOT EXISTS uq_teams_invite_code ON teams (invite_code) WHERE invite_code IS NOT NULL",
 ]
 
 with engine.connect() as conn:

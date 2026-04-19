@@ -18,6 +18,7 @@ class Team(Base):
     captain_phone = Column(String, nullable=True)
     member_count = Column(Integer, nullable=True)
     description = Column(Text, nullable=True)
+    invite_code = Column(String(12), unique=True, nullable=True, index=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     event = relationship("Event", back_populates="teams")

@@ -715,8 +715,6 @@ async def import_teams_excel(
         if not team_name:
             continue
 
-        print(f"[IMPORT DEBUG] row: team={repr(team_name)} contact={repr(contact)}", flush=True)
-
         # Определяем зачёт
         category = "child" if "дети" in category_raw.lower() else "adult"
 
@@ -730,13 +728,10 @@ async def import_teams_excel(
         import re as _re
         email = None
         telegram = None
-        print(f"[IMPORT DEBUG] contact raw={repr(contact)}", flush=True)
         if contact and _re.match(r'^[^@]+@[^@]+\.[^@]+$', contact) and "t.me" not in contact:
             email = contact
-            print(f"[IMPORT DEBUG] classified as EMAIL", flush=True)
         else:
             telegram = contact
-            print(f"[IMPORT DEBUG] classified as TELEGRAM", flush=True)
 
         # Создаём или находим пользователя по email
         user = None
@@ -757,6 +752,14 @@ async def import_teams_excel(
                 db.add(user)
                 db.flush()
 
+        # Генерируем уникальный код приглашения
+        import secrets as _sec, string as _str
+        _alph = _str.ascii_uppercase + _str.digits
+        while True:
+            invite_code = "".join(_sec.choice(_alph) for _ in range(10))
+            if not db.query(Team).filter(Team.invite_code == invite_code).first():
+                break
+
         # Создаём команду
         team = Team(
             event_id=event_id,
@@ -766,6 +769,7 @@ async def import_teams_excel(
             member_count=member_count,
             captain_phone=telegram,  # telegram в поле телефона если нет email
             description=f"Импорт из формы. Контакт: {contact}" if contact else "Импорт из формы",
+            invite_code=invite_code,
         )
         db.add(team)
         db.flush()
@@ -788,15 +792,17 @@ async def import_teams_excel(
             )
 
         # Генерируем сообщение для Telegram если нет email
+        site_url = os.getenv("FRONTEND_URL", "https://tbi-ssector.run")
+        cat_label = "Лосята (детский зачёт)" if category == "child" else "Лоси (взрослый зачёт)"
+        claim_url = f"{site_url}/join?code={invite_code}"
+
         tg_message = None
         if telegram and not email:
-            site_url = os.getenv("FRONTEND_URL", "https://tbi-ssector.run")
-            cat_label = "Лосята (детский зачёт)" if category == "child" else "Лоси (взрослый зачёт)"
             tg_message = (
                 f"Привет! 👋 Ваша команда «{team_name}» ({cat_label}) зарегистрирована на игру «{event.title}».\n\n"
-                f"Зайдите на сайт, чтобы создать аккаунт и управлять командой:\n"
-                f"{site_url}/register\n\n"
-                f"После регистрации на сайте вы сможете видеть состав команды, результаты и получать уведомления об изменениях."
+                f"Чтобы стать владельцем команды на сайте, перейдите по ссылке:\n"
+                f"{claim_url}\n\n"
+                f"Ссылка одноразовая — после привязки команды она перестанет работать."
             )
 
         created.append({
@@ -807,6 +813,8 @@ async def import_teams_excel(
             "email_sent": bool(email and temp_password),
             "telegram": telegram,
             "telegram_message": tg_message,
+            "invite_code": invite_code,
+            "claim_url": claim_url,
         })
 
     db.commit()

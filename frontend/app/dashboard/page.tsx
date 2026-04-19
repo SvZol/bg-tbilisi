@@ -112,6 +112,39 @@ function TeamCard({ teamWithEvent, isCaptain, onCategoryChange }: {
   )
 }
 
+function InviteCodeSection() {
+  const router = useRouter()
+  const [code, setCode] = useState('')
+
+  function handleGo() {
+    const trimmed = code.trim().toUpperCase()
+    if (!trimmed) return
+    router.push(`/join?code=${trimmed}`)
+  }
+
+  return (
+    <section className="bg-white border border-stone-200 rounded-2xl p-5 space-y-3">
+      <h2 className="text-base font-bold text-stone-900">Есть код приглашения?</h2>
+      <div className="flex gap-2">
+        <input
+          value={code}
+          onChange={e => setCode(e.target.value.toUpperCase())}
+          placeholder="Введите код"
+          onKeyDown={e => e.key === 'Enter' && handleGo()}
+          className="flex-1 border border-stone-300 rounded-xl px-3 py-2 text-stone-900 focus:outline-none focus:ring-2 focus:ring-red-400 bg-white uppercase tracking-widest font-mono text-sm"
+        />
+        <button
+          onClick={handleGo}
+          disabled={!code.trim()}
+          className="bg-red-600 text-white px-4 py-2 rounded-xl hover:bg-red-700 font-medium disabled:opacity-50 transition-colors text-sm"
+        >
+          Перейти
+        </button>
+      </div>
+    </section>
+  )
+}
+
 export default function DashboardPage() {
   const { user, loading } = useAuth()
   const router = useRouter()
@@ -214,6 +247,8 @@ export default function DashboardPage() {
           </div>
         </section>
       )}
+
+      <InviteCodeSection />
     </div>
   )
 }
