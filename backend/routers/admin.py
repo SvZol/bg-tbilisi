@@ -715,6 +715,8 @@ async def import_teams_excel(
         if not team_name:
             continue
 
+        print(f"[IMPORT DEBUG] row: team={repr(team_name)} contact={repr(contact)}", flush=True)
+
         # Определяем зачёт
         category = "child" if "дети" in category_raw.lower() else "adult"
 
@@ -724,13 +726,17 @@ async def import_teams_excel(
             skipped.append(f"{team_name} (уже есть)")
             continue
 
-        # Определяем email (если контакт содержит @)
+        # Определяем email (содержит @ и точку после @, не Telegram-ссылка)
+        import re as _re
         email = None
         telegram = None
-        if contact and "@" in contact and "t.me" not in contact:
+        print(f"[IMPORT DEBUG] contact raw={repr(contact)}", flush=True)
+        if contact and _re.match(r'^[^@]+@[^@]+\.[^@]+$', contact) and "t.me" not in contact:
             email = contact
+            print(f"[IMPORT DEBUG] classified as EMAIL", flush=True)
         else:
             telegram = contact
+            print(f"[IMPORT DEBUG] classified as TELEGRAM", flush=True)
 
         # Создаём или находим пользователя по email
         user = None

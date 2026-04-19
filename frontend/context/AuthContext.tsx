@@ -9,6 +9,7 @@ interface User {
   full_name: string
   role: string
   is_verified: boolean
+  phone?: string
 }
 
 interface AuthContextType {
