@@ -80,9 +80,9 @@ export default function TeamResultsPage() {
       .then(([t, r]) => {
         setTeam(t.data)
         setResults(r.data)
-        return api.get(`/events/${t.data.event_id}`)
+        // PDF грузим в фоне — не блокирует показ результатов
+        api.get(`/events/${t.data.event_id}`).then(ev => setEvent(ev.data)).catch(() => {})
       })
-      .then(ev => setEvent(ev.data))
       .catch(() => setNotFound(true))
       .finally(() => setLoading(false))
   }, [id])
