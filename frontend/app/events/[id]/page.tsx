@@ -336,7 +336,7 @@ export default function EventDetailPage() {
                             )
                           })}
                         </div>
-                        {team.description && (
+                        {team.description && !team.description.startsWith('Импорт') && (
                           <p className="text-xs text-stone-500 mt-2 italic">{team.description}</p>
                         )}
                       </div>
