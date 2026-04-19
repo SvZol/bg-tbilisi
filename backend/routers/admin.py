@@ -371,7 +371,16 @@ def delete_member(member_id: UUID, db: Session = Depends(get_db), admin=Depends(
     member = db.query(TeamMember).filter(TeamMember.id == member_id).first()
     if not member:
         raise HTTPException(status_code=404, detail="Не найдено")
+    team_id = member.team_id
     db.delete(member)
+    db.flush()
+    # Если остался 1 участник — автоматически переключаем на взрослый зачёт
+    from models.team import Team as _Team
+    team = db.query(_Team).filter(_Team.id == team_id).first()
+    if team:
+        remaining = db.query(TeamMember).filter(TeamMember.team_id == team_id).count()
+        if remaining < 2 and team.category == "child":
+            team.category = "adult"
     db.commit()
     return {"ok": True}
 
@@ -788,6 +797,16 @@ async def import_teams_excel(
             is_registered=user is not None,
         )
         db.add(captain)
+
+        # Добавляем анонимных участников согласно member_count
+        if member_count and member_count > 1:
+            for idx in range(2, member_count + 1):
+                db.add(TeamMember(
+                    team_id=team.id,
+                    guest_name=f"Участник {idx}",
+                    role="member",
+                    is_registered=False,
+                ))
 
         # Отправляем письмо если есть email и новый пользователь
         if email and temp_password and background_tasks:

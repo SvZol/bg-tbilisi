@@ -191,6 +191,11 @@ def remove_member(team_id: UUID, member_id: UUID, db: Session = Depends(get_db),
         raise HTTPException(status_code=400, detail="Нельзя удалить капитана")
 
     db.delete(member)
+    db.flush()
+    # Если остался 1 участник — автоматически переключаем на взрослый зачёт
+    remaining = db.query(TeamMember).filter(TeamMember.team_id == team_id).count()
+    if remaining < 2 and team.category == "child":
+        team.category = "adult"
     db.commit()
     return {"ok": True}
 
