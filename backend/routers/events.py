@@ -29,6 +29,7 @@ class EventOut(BaseModel):
     min_team_size: int
     max_team_size: int
     status: str
+    results_pdf: str | None = None
 
     class Config:
         from_attributes = True

@@ -58,6 +58,8 @@ export default function AdminPage() {
   const [selectedEventId, setSelectedEventId] = useState('')
   const [eventTeams, setEventTeams] = useState<Team[]>([])
   const [scoreboard, setScoreboard] = useState<{ adult: any[]; child: any[] } | null>(null)
+  const [uploadingPdf, setUploadingPdf] = useState(false)
+  const [pdfFilename, setPdfFilename] = useState<string | null>(null)
 
   // Вопросы
   const [questions, setQuestions] = useState<Question[]>([])
@@ -165,8 +167,12 @@ export default function AdminPage() {
 
   async function loadScoreboard(eventId: string) {
     try {
-      const res = await api.get(`/admin/events/${eventId}/scoreboard`)
-      setScoreboard(res.data)
+      const [sbRes, evRes] = await Promise.all([
+        api.get(`/admin/events/${eventId}/scoreboard`),
+        api.get(`/events/${eventId}`),
+      ])
+      setScoreboard(sbRes.data)
+      setPdfFilename(evRes.data.results_pdf || null)
     } catch { setScoreboard(null) }
   }
 
@@ -714,6 +720,44 @@ export default function AdminPage() {
           {eventSelector((id) => { loadEventData(id); loadScoreboard(id) })}
           {selectedEventId && (
             <>
+              {/* PDF раздатки */}
+              <div className={`${card} flex items-center gap-4 flex-wrap`}>
+                <div className="flex-1">
+                  <p className="text-sm font-bold text-stone-900">Раздатки (PDF)</p>
+                  {pdfFilename
+                    ? <a href={`${API_URL}/uploads/pdfs/${pdfFilename}`} target="_blank" rel="noreferrer"
+                        className="text-sm text-red-700 hover:underline">{pdfFilename}</a>
+                    : <p className="text-sm text-stone-400">Файл не загружен</p>
+                  }
+                </div>
+                <div className="flex gap-2">
+                  <label className={`${btnSm} cursor-pointer ${uploadingPdf ? 'opacity-50' : ''}`}>
+                    {uploadingPdf ? 'Загрузка...' : pdfFilename ? 'Заменить PDF' : 'Загрузить PDF'}
+                    <input type="file" accept=".pdf" className="hidden" disabled={uploadingPdf}
+                      onChange={async e => {
+                        const f = e.target.files?.[0]; if (!f) return
+                        setUploadingPdf(true)
+                        const fd = new FormData(); fd.append('file', f)
+                        try {
+                          const res = await api.post(`/admin/events/${selectedEventId}/upload-results-pdf`, fd)
+                          setPdfFilename(res.data.filename)
+                        } catch (err: any) {
+                          alert(err?.response?.data?.detail || 'Ошибка загрузки')
+                        } finally { setUploadingPdf(false); e.target.value = '' }
+                      }} />
+                  </label>
+                  {pdfFilename && (
+                    <button onClick={async () => {
+                      if (!confirm('Удалить PDF?')) return
+                      await api.delete(`/admin/events/${selectedEventId}/results-pdf`)
+                      setPdfFilename(null)
+                    }} className="text-sm text-red-500 hover:text-red-700 border border-red-200 px-3 py-1 rounded-lg hover:bg-red-50">
+                      Удалить
+                    </button>
+                  )}
+                </div>
+              </div>
+
               {!scoreboard ? (
                 <p className="text-stone-500">Нет данных</p>
               ) : (

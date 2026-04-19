@@ -18,6 +18,7 @@ class Event(Base):
     min_team_size = Column(Integer, default=1)
     max_team_size = Column(Integer, default=10)
     status = Column(String, default="open")
+    results_pdf = Column(String, nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     teams = relationship("Team", back_populates="event")

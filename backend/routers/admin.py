@@ -161,6 +161,53 @@ def notify_new_event(
     return {"ok": True, "notified": len(users)}
 
 
+@router.post("/events/{event_id}/upload-results-pdf")
+async def upload_results_pdf(
+    event_id: UUID,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    admin=Depends(get_current_admin),
+):
+    import shutil, uuid as _uuid
+    event = db.query(Event).filter(Event.id == event_id).first()
+    if not event:
+        raise HTTPException(404, "Мероприятие не найдено")
+    if not file.filename.lower().endswith(".pdf"):
+        raise HTTPException(400, "Разрешены только PDF-файлы")
+
+    os.makedirs("uploads/pdfs", exist_ok=True)
+    filename = f"{_uuid.uuid4()}.pdf"
+    path = f"uploads/pdfs/{filename}"
+
+    # Удаляем старый файл если был
+    if event.results_pdf:
+        old = f"uploads/pdfs/{event.results_pdf}"
+        if os.path.exists(old):
+            os.remove(old)
+
+    content = await file.read()
+    with open(path, "wb") as f:
+        f.write(content)
+
+    event.results_pdf = filename
+    db.commit()
+    return {"ok": True, "filename": filename}
+
+
+@router.delete("/events/{event_id}/results-pdf")
+def delete_results_pdf(event_id: UUID, db: Session = Depends(get_db), admin=Depends(get_current_admin)):
+    event = db.query(Event).filter(Event.id == event_id).first()
+    if not event:
+        raise HTTPException(404, "Мероприятие не найдено")
+    if event.results_pdf:
+        path = f"uploads/pdfs/{event.results_pdf}"
+        if os.path.exists(path):
+            os.remove(path)
+        event.results_pdf = None
+        db.commit()
+    return {"ok": True}
+
+
 def _send_safe(fn, *args):
     try:
         fn(*args)
