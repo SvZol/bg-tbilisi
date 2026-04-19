@@ -406,7 +406,7 @@ export default function EventDetailPage() {
                 <div>
                   <label className="block text-sm font-medium text-stone-700 mb-1">Телефон капитана *</label>
                   <input value={captainPhone} onChange={e => setCaptainPhone(e.target.value)}
-                    className={input} required placeholder="+7 (999) 123-45-67" />
+                    className={input} required placeholder="+995 (999) 99-99-99" />
                 </div>
               </div>
 

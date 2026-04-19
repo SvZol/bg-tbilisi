@@ -602,30 +602,43 @@ export default function AdminPage() {
                   {importTeamsMsg.text}
                 </p>
               )}
-              {importTeamsResult && importTeamsResult.some(t => t.telegram_message) && (
+              {importTeamsResult && importTeamsResult.length > 0 && (
                 <div className={`${card} space-y-3`}>
-                  <h4 className="font-bold text-stone-900">Сообщения для Telegram</h4>
-                  <p className="text-sm text-stone-500">Скопируйте и отправьте каждому участнику вручную:</p>
-                  {importTeamsResult.filter(t => t.telegram_message).map((t, i) => (
+                  <h4 className="font-bold text-stone-900">Результаты импорта</h4>
+                  {importTeamsResult.map((t, i) => (
                     <div key={i} className="border border-stone-200 rounded-xl p-3 space-y-2">
-                      <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
                         <span className="text-sm font-semibold text-stone-800">{t.team}</span>
-                        <a href={`https://t.me/${t.telegram?.replace(/^@/, '').replace(/^t\.me\//, '')}`}
-                          target="_blank" rel="noreferrer"
-                          className="text-xs text-blue-600 hover:text-blue-700 font-medium">
-                          {t.telegram} ↗
-                        </a>
+                        <div className="flex items-center gap-2">
+                          {t.telegram && (
+                            <a href={`https://t.me/${t.telegram?.replace(/^@/, '').replace(/^t\.me\//, '')}`}
+                              target="_blank" rel="noreferrer"
+                              className="text-xs text-blue-600 hover:text-blue-700 font-medium">
+                              {t.telegram} ↗
+                            </a>
+                          )}
+                          {t.email_sent && <span className="text-xs text-green-600">✓ письмо отправлено</span>}
+                        </div>
                       </div>
-                      <pre className="text-xs text-stone-700 bg-stone-50 rounded-lg p-3 whitespace-pre-wrap font-sans">{t.telegram_message}</pre>
-                      <button
-                        onClick={() => {
-                          navigator.clipboard.writeText(t.telegram_message)
-                          setCopiedIdx(i)
-                          setTimeout(() => setCopiedIdx(null), 2000)
-                        }}
-                        className={`text-xs px-3 py-1.5 rounded-lg font-medium transition-colors ${copiedIdx === i ? 'bg-green-100 text-green-700' : 'bg-stone-100 text-stone-700 hover:bg-stone-200'}`}>
-                        {copiedIdx === i ? '✓ Скопировано' : 'Копировать'}
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-stone-500">Код приглашения:</span>
+                        <code className="text-xs font-mono bg-stone-100 px-2 py-0.5 rounded text-stone-800 tracking-widest">{t.invite_code}</code>
+                        <span className="text-xs text-stone-400">{t.claim_url}</span>
+                      </div>
+                      {t.telegram_message && (
+                        <>
+                          <pre className="text-xs text-stone-700 bg-stone-50 rounded-lg p-3 whitespace-pre-wrap font-sans">{t.telegram_message}</pre>
+                          <button
+                            onClick={() => {
+                              navigator.clipboard.writeText(t.telegram_message)
+                              setCopiedIdx(i)
+                              setTimeout(() => setCopiedIdx(null), 2000)
+                            }}
+                            className={`text-xs px-3 py-1.5 rounded-lg font-medium transition-colors ${copiedIdx === i ? 'bg-green-100 text-green-700' : 'bg-stone-100 text-stone-700 hover:bg-stone-200'}`}>
+                            {copiedIdx === i ? '✓ Скопировано' : 'Копировать сообщение'}
+                          </button>
+                        </>
+                      )}
                     </div>
                   ))}
                 </div>

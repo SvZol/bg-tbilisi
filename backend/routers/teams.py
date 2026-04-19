@@ -217,6 +217,10 @@ def update_team(team_id: UUID, data: TeamUpdate, db: Session = Depends(get_db), 
     if data.name:
         team.name = data.name
     if data.category in ("adult", "child"):
+        if data.category == "child":
+            member_count = db.query(TeamMember).filter(TeamMember.team_id == team_id).count()
+            if member_count < 2:
+                raise HTTPException(status_code=400, detail="Для детского зачёта (Лосята) нужно минимум 2 участника")
         team.category = data.category
     if data.captain_name is not None:
         team.captain_name = data.captain_name

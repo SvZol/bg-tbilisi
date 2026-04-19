@@ -345,6 +345,11 @@ def set_team_category(team_id: UUID, category: str, db: Session = Depends(get_db
         raise HTTPException(404, "Команда не найдена")
     if category not in ("adult", "child"):
         raise HTTPException(400, "Допустимые значения: adult, child")
+    if category == "child":
+        from models.team import TeamMember
+        member_count = db.query(TeamMember).filter(TeamMember.team_id == team_id).count()
+        if member_count < 2:
+            raise HTTPException(400, "Для детского зачёта (Лосята) нужно минимум 2 участника")
     team.category = category
     db.commit()
     return {"id": str(team.id), "name": team.name, "category": team.category}

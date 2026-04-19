@@ -78,7 +78,7 @@ export default function ProfilePage() {
             <label className="block text-sm font-medium text-stone-700 mb-1">Телефон</label>
             <input value={profileForm.phone}
               onChange={e => setProfileForm({ ...profileForm, phone: e.target.value })}
-              className={input} placeholder="+7 (999) 123-45-67" />
+              className={input} placeholder="+995 (999) 99-99-99" />
           </div>
           {profileMsg && (
             <p className={`text-sm font-medium ${profileMsg === 'Сохранено' ? 'text-green-700' : 'text-red-600'}`}>
