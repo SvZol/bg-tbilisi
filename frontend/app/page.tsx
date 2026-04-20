@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import api from '@/lib/api'
+import ReactMarkdown from 'react-markdown'
 
 interface Event {
   id: string
@@ -120,15 +121,28 @@ export default function HomePage() {
             {posts.slice(0, 3).map(post => (
               <div key={post.id} className="bg-white border border-stone-200 rounded-2xl overflow-hidden">
                 {post.image_filename && (
-                  <img
-                    src={`${API_URL}/uploads/${post.image_filename}`}
-                    alt={post.title}
-                    className="w-full h-52 object-cover"
-                  />
+                  <a href={`${API_URL}/uploads/${post.image_filename}`} target="_blank" rel="noreferrer">
+                    <img
+                      src={`${API_URL}/uploads/${post.image_filename}`}
+                      alt={post.title}
+                      className="w-full object-contain max-h-[480px] bg-stone-50 cursor-zoom-in"
+                    />
+                  </a>
                 )}
                 <div className="p-6">
-                  <h3 className="font-bold text-stone-900 text-lg mb-2">{post.title}</h3>
-                  <p className="text-stone-600 line-clamp-3 text-sm leading-relaxed">{post.content}</p>
+                  <h3 className="font-bold text-stone-900 text-lg mb-3">{post.title}</h3>
+                  <div className="text-stone-600 text-sm leading-relaxed prose prose-sm max-w-none prose-a:text-red-600 prose-a:no-underline hover:prose-a:underline">
+                    <ReactMarkdown
+                      components={{
+                        a: ({ href, children }) => (
+                          <a href={href} target="_blank" rel="noreferrer" className="text-red-600 hover:underline">{children}</a>
+                        ),
+                        p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
+                      }}
+                    >
+                      {post.content}
+                    </ReactMarkdown>
+                  </div>
                   <p className="text-xs text-stone-400 mt-3">
                     {new Date(post.created_at).toLocaleDateString('ru-RU')}
                   </p>
