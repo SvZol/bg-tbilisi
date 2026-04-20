@@ -48,6 +48,8 @@ export default function AdminPage() {
   const [eventError, setEventError] = useState('')
   const [postError, setPostError] = useState('')
   const [uploadingPostId, setUploadingPostId] = useState<string | null>(null)
+  const [editingPostId, setEditingPostId] = useState<string | null>(null)
+  const [editPostForm, setEditPostForm] = useState({ title: '', content: '', is_published: false })
 
   // Перенос мероприятия
   const [reschedulingId, setReschedulingId] = useState<string | null>(null)
@@ -546,16 +548,53 @@ export default function AdminPage() {
             <div className="space-y-3">
               {posts.map(post => (
                 <div key={post.id} className={`${card} space-y-3`}>
-                  <div className="flex justify-between items-start">
-                    <div>
+                  <div className="flex justify-between items-start gap-2">
+                    <div className="flex-1 min-w-0">
                       <p className="font-semibold text-stone-900">{post.title}</p>
                       <p className="text-sm text-stone-500">{new Date(post.created_at).toLocaleDateString('ru-RU')}</p>
                     </div>
-                    <button onClick={() => togglePostPublish(post)}
-                      className={`text-sm px-3 py-1 rounded-full font-medium ${post.is_published ? 'bg-green-100 text-green-700' : 'bg-stone-100 text-stone-600'}`}>
-                      {post.is_published ? 'Опубликовано' : 'Черновик'}
-                    </button>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button onClick={() => togglePostPublish(post)}
+                        className={`text-sm px-3 py-1 rounded-full font-medium ${post.is_published ? 'bg-green-100 text-green-700' : 'bg-stone-100 text-stone-600'}`}>
+                        {post.is_published ? 'Опубликовано' : 'Черновик'}
+                      </button>
+                      <button onClick={() => {
+                        setEditingPostId(post.id)
+                        setEditPostForm({ title: post.title, content: post.content, is_published: post.is_published })
+                      }} className="text-sm text-stone-500 hover:text-stone-800 border border-stone-200 px-3 py-1 rounded-lg hover:bg-stone-50">
+                        Изменить
+                      </button>
+                      <button onClick={async () => {
+                        if (!confirm('Удалить новость?')) return
+                        await api.delete(`/admin/posts/${post.id}`)
+                        setPosts(posts.filter(p => p.id !== post.id))
+                      }} className="text-sm text-red-400 hover:text-red-600 border border-red-100 px-3 py-1 rounded-lg hover:bg-red-50">
+                        Удалить
+                      </button>
+                    </div>
                   </div>
+
+                  {editingPostId === post.id && (
+                    <form onSubmit={async e => {
+                      e.preventDefault()
+                      const res = await api.patch(`/admin/posts/${post.id}`, editPostForm)
+                      setPosts(posts.map(p => p.id === post.id ? { ...p, ...res.data } : p))
+                      setEditingPostId(null)
+                    }} className="space-y-2 border-t border-stone-100 pt-3">
+                      <input value={editPostForm.title} onChange={e => setEditPostForm({ ...editPostForm, title: e.target.value })}
+                        className={input} placeholder="Заголовок" required />
+                      <textarea value={editPostForm.content} onChange={e => setEditPostForm({ ...editPostForm, content: e.target.value })}
+                        rows={5} className={input} placeholder="Текст (поддерживается Markdown)" required />
+                      <div className="flex gap-2">
+                        <button type="submit" className={btn}>Сохранить</button>
+                        <button type="button" onClick={() => setEditingPostId(null)}
+                          className="px-4 py-2 rounded-xl border border-stone-300 text-stone-600 hover:bg-stone-50 text-sm">
+                          Отмена
+                        </button>
+                      </div>
+                    </form>
+                  )}
+
                   <div className="flex items-center gap-4">
                     {post.image_filename && (
                       <img src={`${API_URL}/uploads/${post.image_filename}`} alt="" className="h-16 w-24 object-cover rounded-xl border border-stone-200" />
@@ -565,13 +604,6 @@ export default function AdminPage() {
                       <input type="file" accept="image/*" className="hidden" disabled={uploadingPostId === post.id}
                         onChange={e => { const f = e.target.files?.[0]; if (f) handlePostImageUpload(post.id, f); e.target.value = '' }} />
                     </label>
-                    <button onClick={async () => {
-                      if (!confirm('Удалить новость?')) return
-                      await api.delete(`/admin/posts/${post.id}`)
-                      setPosts(posts.filter(p => p.id !== post.id))
-                    }} className="text-sm text-red-400 hover:text-red-600 ml-auto">
-                      Удалить
-                    </button>
                   </div>
                 </div>
               ))}
