@@ -267,6 +267,19 @@ def upload_post_image(
     db.commit()
     return {"image_filename": filename}
 
+@router.delete("/posts/{post_id}")
+def delete_post(post_id: UUID, db: Session = Depends(get_db), admin=Depends(get_current_admin)):
+    post = db.query(Post).filter(Post.id == post_id).first()
+    if not post:
+        raise HTTPException(404, "Не найдено")
+    if post.image_filename:
+        path = os.path.join(UPLOAD_DIR, post.image_filename)
+        if os.path.exists(path):
+            os.remove(path)
+    db.delete(post)
+    db.commit()
+    return {"ok": True}
+
 # --- Страницы ---
 
 class PageCreate(BaseModel):

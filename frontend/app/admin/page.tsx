@@ -565,6 +565,13 @@ export default function AdminPage() {
                       <input type="file" accept="image/*" className="hidden" disabled={uploadingPostId === post.id}
                         onChange={e => { const f = e.target.files?.[0]; if (f) handlePostImageUpload(post.id, f); e.target.value = '' }} />
                     </label>
+                    <button onClick={async () => {
+                      if (!confirm('Удалить новость?')) return
+                      await api.delete(`/admin/posts/${post.id}`)
+                      setPosts(posts.filter(p => p.id !== post.id))
+                    }} className="text-sm text-red-400 hover:text-red-600 ml-auto">
+                      Удалить
+                    </button>
                   </div>
                 </div>
               ))}
