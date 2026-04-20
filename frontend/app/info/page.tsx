@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
+import remarkBreaks from 'remark-breaks'
 import api from '@/lib/api'
 
 export default function InfoPage() {
@@ -27,6 +28,7 @@ export default function InfoPage() {
     <div className="max-w-2xl mx-auto space-y-6">
       <h1 className="text-3xl font-extrabold text-stone-900">{page.title}</h1>
       <ReactMarkdown
+        remarkPlugins={[remarkBreaks]}
         components={{
           p: ({ children }) => <p className="text-stone-700 leading-relaxed mb-3">{children}</p>,
           h1: ({ children }) => <h2 className="text-2xl font-bold text-stone-900 mt-6 mb-2">{children}</h2>,
