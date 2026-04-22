@@ -820,8 +820,9 @@ async def import_teams_excel(
                     email=email,
                     password_hash=hash_password(temp_password),
                     full_name=team_name,  # временное имя
-                    is_verified=True,  # уже верифицирован через форму
+                    is_verified=True,
                     role="user",
+                    is_imported=True,
                 )
                 db.add(user)
                 db.flush()
@@ -1350,6 +1351,7 @@ def list_users(db: Session = Depends(get_db), admin=Depends(get_current_admin)):
             "is_verified": u.is_verified,
             "created_at": u.created_at.isoformat() if u.created_at else None,
             "last_login_at": u.last_login_at.isoformat() if u.last_login_at else None,
+            "is_imported": bool(u.is_imported),
         }
         for u in users
     ]

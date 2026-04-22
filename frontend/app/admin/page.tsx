@@ -37,7 +37,7 @@ export default function AdminPage() {
   const [tab, setTab] = useState<'events' | 'posts' | 'teams' | 'results' | 'questions' | 'info' | 'rules' | 'users'>('events')
 
   // Пользователи
-  interface AdminUser { id: string; email: string; full_name: string; role: string; is_verified: boolean; created_at: string; last_login_at: string | null }
+  interface AdminUser { id: string; email: string; full_name: string; role: string; is_verified: boolean; created_at: string; last_login_at: string | null; is_imported: boolean }
   const [users, setUsers] = useState<AdminUser[]>([])
   const [usersLoaded, setUsersLoaded] = useState(false)
 
@@ -1206,7 +1206,9 @@ export default function AdminPage() {
                       <td className="px-4 py-3 text-sm">
                         {u.last_login_at
                           ? <span className="text-green-700">{new Date(u.last_login_at).toLocaleDateString('ru-RU')}</span>
-                          : <span className="text-stone-400">не входил</span>}
+                          : u.is_imported
+                            ? <span className="text-amber-600 text-xs font-medium">импорт, не входил</span>
+                            : <span className="text-stone-400">не входил</span>}
                       </td>
                       <td className="px-4 py-3 text-right text-xs text-stone-400">
                         {new Date(u.created_at).toLocaleDateString('ru-RU')}

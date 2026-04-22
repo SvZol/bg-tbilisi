@@ -11,6 +11,7 @@ migrations = [
     "ALTER TABLE teams ADD COLUMN IF NOT EXISTS invite_code VARCHAR(12)",
     "ALTER TABLE events ADD COLUMN IF NOT EXISTS results_pdf VARCHAR",
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMP",
+    "ALTER TABLE users ADD COLUMN IF NOT EXISTS is_imported BOOLEAN DEFAULT FALSE",
     "CREATE UNIQUE INDEX IF NOT EXISTS uq_teams_invite_code ON teams (invite_code) WHERE invite_code IS NOT NULL",
 ]
 
