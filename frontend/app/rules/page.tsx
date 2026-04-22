@@ -51,16 +51,19 @@ export default function RulesPage() {
           blockquote: ({ children }) => (
             <blockquote className="border-l-4 border-red-300 pl-4 italic text-stone-600 my-3">{children}</blockquote>
           ),
-          img: ({ src, alt }) => (
-            <a href={src} target="_blank" rel="noreferrer" className="block my-4">
+          img: ({ src, alt }) => {
+            const s = typeof src === 'string' ? src : undefined
+            return (
+            <a href={s} target="_blank" rel="noreferrer" className="block my-4">
               <img
-                src={src?.startsWith('/uploads') ? `${API_URL}${src}` : src}
+                src={s?.startsWith('/uploads') ? `${API_URL}${s}` : s}
                 alt={alt || ''}
                 loading="lazy"
                 className="rounded-2xl max-w-full border border-stone-200 cursor-zoom-in"
               />
             </a>
-          ),
+            )
+          },
         }}
       >
         {page.content}
