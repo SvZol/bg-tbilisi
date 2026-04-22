@@ -731,7 +731,7 @@ export default function AdminPage() {
                       {(() => {
                         const cap = team.members.find((m: any) => m.role === 'captain')
                         if (!cap) return null
-                        if (cap.last_login_at) return <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">✓ дорегистрирован</span>
+                        if (cap.user_id && !cap.is_imported) return <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">✓ дорегистрирован</span>
                         if (cap.user_id) return <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-medium">письмо отправлено</span>
                         return <span className="text-xs bg-stone-100 text-stone-500 px-2 py-0.5 rounded-full font-medium">ждёт дорегистрации</span>
                       })()}
