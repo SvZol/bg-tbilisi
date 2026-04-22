@@ -37,7 +37,7 @@ export default function AdminPage() {
   const [tab, setTab] = useState<'events' | 'posts' | 'teams' | 'results' | 'questions' | 'info' | 'rules' | 'users'>('events')
 
   // Пользователи
-  interface AdminUser { id: string; email: string; full_name: string; role: string; is_verified: boolean; created_at: string }
+  interface AdminUser { id: string; email: string; full_name: string; role: string; is_verified: boolean; created_at: string; last_login_at: string | null }
   const [users, setUsers] = useState<AdminUser[]>([])
   const [usersLoaded, setUsersLoaded] = useState(false)
 
@@ -1188,8 +1188,8 @@ export default function AdminPage() {
                   <tr>
                     <th className="text-left px-4 py-3 font-semibold text-stone-700">Имя</th>
                     <th className="text-left px-4 py-3 font-semibold text-stone-700">Email</th>
-                    <th className="text-left px-4 py-3 font-semibold text-stone-700">Email подтверждён</th>
                     <th className="text-left px-4 py-3 font-semibold text-stone-700">Роль</th>
+                    <th className="text-left px-4 py-3 font-semibold text-stone-700">Последний вход</th>
                     <th className="px-4 py-3"></th>
                   </tr>
                 </thead>
@@ -1199,14 +1199,14 @@ export default function AdminPage() {
                       <td className="px-4 py-3 text-stone-900 font-medium">{u.full_name}</td>
                       <td className="px-4 py-3 text-stone-600">{u.email}</td>
                       <td className="px-4 py-3">
-                        {u.is_verified
-                          ? <span className="text-green-700 font-medium">✓ Да</span>
-                          : <span className="text-stone-400">Нет</span>}
-                      </td>
-                      <td className="px-4 py-3">
                         <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-bold ${u.role === 'admin' ? 'bg-red-100 text-red-800' : 'bg-stone-100 text-stone-600'}`}>
                           {u.role}
                         </span>
+                      </td>
+                      <td className="px-4 py-3 text-sm">
+                        {u.last_login_at
+                          ? <span className="text-green-700">{new Date(u.last_login_at).toLocaleDateString('ru-RU')}</span>
+                          : <span className="text-stone-400">не входил</span>}
                       </td>
                       <td className="px-4 py-3 text-right text-xs text-stone-400">
                         {new Date(u.created_at).toLocaleDateString('ru-RU')}

@@ -15,6 +15,7 @@ class User(Base):
     is_verified = Column(Boolean, default=False)
     role = Column(String, default="user")
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    last_login_at = Column(DateTime, nullable=True)
 
     # Email verification
     email_token = Column(String, nullable=True)

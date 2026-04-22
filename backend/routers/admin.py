@@ -1349,6 +1349,7 @@ def list_users(db: Session = Depends(get_db), admin=Depends(get_current_admin)):
             "role": u.role,
             "is_verified": u.is_verified,
             "created_at": u.created_at.isoformat() if u.created_at else None,
+            "last_login_at": u.last_login_at.isoformat() if u.last_login_at else None,
         }
         for u in users
     ]

@@ -75,8 +75,8 @@ export default function Navbar() {
         {/* Десктоп */}
         <div className="hidden md:flex items-center justify-between gap-4 py-1">
           <Link href="/" className="flex items-center gap-2 shrink-0">
-            <img src="/logo-icon.png" alt="" className="h-8 w-auto" />
-            <img src="/logo-text.png" alt="ТБИссектриса" className="h-12 w-auto" />
+            <img src="/logo-icon.png" alt="" className="h-12 w-auto" />
+            <img src="/logo-text.png" alt="ТБИссектриса" className="h-16 w-auto" />
           </Link>
           <div className="flex items-center gap-5 text-sm flex-wrap justify-end">
             {links}
