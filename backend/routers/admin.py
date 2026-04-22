@@ -381,9 +381,13 @@ def get_event_teams(event_id: UUID, db: Session = Depends(get_db), admin=Depends
                 if user:
                     member_dict["display_name"] = user.full_name
                     member_dict["display_email"] = user.email
+                    member_dict["last_login_at"] = user.last_login_at.isoformat() if user.last_login_at else None
+                    member_dict["is_imported"] = bool(user.is_imported)
             else:
                 member_dict["display_name"] = member.guest_name
                 member_dict["display_email"] = member.guest_email
+                member_dict["last_login_at"] = None
+                member_dict["is_imported"] = False
 
             members_data.append(member_dict)
 
