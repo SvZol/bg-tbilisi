@@ -1360,6 +1360,23 @@ def list_users(db: Session = Depends(get_db), admin=Depends(get_current_admin)):
         for u in users
     ]
 
+@router.post("/teams/{team_id}/invite-code")
+def generate_team_invite_code(team_id: UUID, db: Session = Depends(get_db), admin=Depends(get_current_admin)):
+    """Generate (or regenerate) an invite code for a team so admin can share the claim link."""
+    team = db.query(Team).filter(Team.id == team_id).first()
+    if not team:
+        raise HTTPException(404, "Команда не найдена")
+    import secrets as _sec, string as _str
+    _alph = _str.ascii_uppercase + _str.digits
+    while True:
+        code = "".join(_sec.choice(_alph) for _ in range(10))
+        if not db.query(Team).filter(Team.invite_code == code).first():
+            break
+    team.invite_code = code
+    db.commit()
+    return {"invite_code": code}
+
+
 @router.patch("/users/{user_id}/role")
 def set_user_role(user_id: UUID, data: dict, db: Session = Depends(get_db), admin=Depends(get_current_admin)):
     from models.user import User

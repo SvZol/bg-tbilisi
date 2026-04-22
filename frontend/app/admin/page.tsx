@@ -62,6 +62,7 @@ export default function AdminPage() {
   const [scoreboard, setScoreboard] = useState<{ adult: any[]; child: any[] } | null>(null)
   const [uploadingPdf, setUploadingPdf] = useState(false)
   const [pdfFilename, setPdfFilename] = useState<string | null>(null)
+  const [generatedInvite, setGeneratedInvite] = useState<{ teamId: string; url: string } | null>(null)
 
   // Вопросы
   const [questions, setQuestions] = useState<Question[]>([])
@@ -731,10 +732,26 @@ export default function AdminPage() {
                       {(() => {
                         const cap = team.members.find((m: any) => m.role === 'captain')
                         if (!cap) return null
-                        if (cap.user_id && !cap.is_imported) return <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">✓ дорегистрирован</span>
+                        if (cap.last_login_at) return <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">✓ дорегистрирован</span>
                         if (cap.user_id) return <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-medium">письмо отправлено</span>
                         return <span className="text-xs bg-stone-100 text-stone-500 px-2 py-0.5 rounded-full font-medium">ждёт дорегистрации</span>
                       })()}
+                      {/* Кнопка генерации ссылки на дорегистрацию */}
+                      <button
+                        onClick={async () => {
+                          const res = await api.post(`/admin/teams/${team.id}/invite-code`)
+                          const url = `${window.location.origin}/join?code=${res.data.invite_code}`
+                          setGeneratedInvite({ teamId: team.id, url })
+                        }}
+                        className="text-xs text-stone-500 hover:text-red-600 underline"
+                        title="Сгенерировать ссылку на дорегистрацию"
+                      >🔗 ссылка</button>
+                      {generatedInvite?.teamId === team.id && (
+                        <div className="w-full mt-1 flex items-center gap-2">
+                          <input readOnly value={generatedInvite.url} className="text-xs border border-stone-200 rounded px-2 py-1 flex-1 bg-stone-50 font-mono" onClick={e => (e.target as HTMLInputElement).select()} />
+                          <button onClick={() => { navigator.clipboard.writeText(generatedInvite.url); setGeneratedInvite(null) }} className="text-xs bg-stone-100 hover:bg-stone-200 px-2 py-1 rounded">копировать</button>
+                        </div>
+                      )}
                       {/* Переключатель зачёта */}
                       <select
                         value={team.category || 'child'}
