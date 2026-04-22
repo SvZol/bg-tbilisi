@@ -1201,6 +1201,26 @@ def get_page_admin(slug: str, db: Session = Depends(get_db), admin=Depends(get_c
         raise HTTPException(404, "Страница не найдена")
     return {"slug": page.slug, "title": page.title, "content": page.content, "is_published": page.is_published}
 
+@router.post("/pages/{slug}/image")
+async def upload_page_image(
+    slug: str,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    admin=Depends(get_current_admin),
+):
+    import uuid as _uuid
+    allowed = {'.jpg', '.jpeg', '.png', '.gif', '.webp'}
+    ext = os.path.splitext(file.filename)[1].lower()
+    if ext not in allowed:
+        raise HTTPException(400, "Разрешены только изображения")
+    os.makedirs("uploads/pages", exist_ok=True)
+    filename = f"{_uuid.uuid4()}{ext}"
+    path = f"uploads/pages/{filename}"
+    content = await file.read()
+    with open(path, "wb") as f:
+        f.write(content)
+    return {"filename": filename, "url": f"/uploads/pages/{filename}"}
+
 @router.put("/pages/{slug}")
 def upsert_page(slug: str, data: PageUpsert, db: Session = Depends(get_db), admin=Depends(get_current_admin)):
     from datetime import timezone

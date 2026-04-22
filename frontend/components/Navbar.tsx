@@ -25,6 +25,10 @@ export default function Navbar() {
         className="text-stone-700 hover:text-red-600 font-medium transition-colors uppercase text-sm tracking-wide">
         О проекте
       </Link>
+      <Link href="/rules" onClick={() => setOpen(false)}
+        className="text-stone-700 hover:text-red-600 font-medium transition-colors uppercase text-sm tracking-wide">
+        Правила
+      </Link>
       {user ? (
         <>
           <Link href="/dashboard" onClick={() => setOpen(false)}

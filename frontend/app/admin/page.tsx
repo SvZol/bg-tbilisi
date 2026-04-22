@@ -34,7 +34,7 @@ export default function AdminPage() {
 
   const [events, setEvents] = useState<Event[]>([])
   const [posts, setPosts] = useState<Post[]>([])
-  const [tab, setTab] = useState<'events' | 'posts' | 'teams' | 'results' | 'questions' | 'info' | 'users'>('events')
+  const [tab, setTab] = useState<'events' | 'posts' | 'teams' | 'results' | 'questions' | 'info' | 'rules' | 'users'>('events')
 
   // Пользователи
   interface AdminUser { id: string; email: string; full_name: string; role: string; is_verified: boolean; created_at: string }
@@ -83,6 +83,10 @@ export default function AdminPage() {
   const [infoForm, setInfoForm] = useState({ title: '', content: '', is_published: true })
   const [infoMsg, setInfoMsg] = useState('')
   const [infoLoaded, setInfoLoaded] = useState(false)
+  const [rulesForm, setRulesForm] = useState({ title: '', content: '', is_published: true })
+  const [rulesMsg, setRulesMsg] = useState('')
+  const [rulesLoaded, setRulesLoaded] = useState(false)
+  const [uploadingRulesImg, setUploadingRulesImg] = useState(false)
 
   useEffect(() => {
     if (!loading && (!user || user.role !== 'admin')) router.push('/')
@@ -275,6 +279,35 @@ export default function AdminPage() {
     } catch { setInfoMsg('Ошибка') }
   }
 
+  async function loadRulesPage() {
+    try {
+      const res = await api.get('/admin/pages/rules')
+      setRulesForm({ title: res.data.title, content: res.data.content, is_published: res.data.is_published })
+    } catch {
+      setRulesForm({ title: 'Правила игры', content: '', is_published: true })
+    }
+    setRulesLoaded(true)
+  }
+
+  async function handleSaveRules(e: React.FormEvent) {
+    e.preventDefault(); setRulesMsg('')
+    try {
+      await api.put('/admin/pages/rules', rulesForm)
+      setRulesMsg('Сохранено')
+    } catch { setRulesMsg('Ошибка') }
+  }
+
+  async function handleRulesImageUpload(file: File) {
+    setUploadingRulesImg(true)
+    const fd = new FormData(); fd.append('file', file)
+    try {
+      const res = await api.post('/admin/pages/rules/image', fd)
+      const insertText = `\n![картинка](${res.data.url})\n`
+      setRulesForm(f => ({ ...f, content: f.content + insertText }))
+    } catch { alert('Ошибка загрузки') }
+    finally { setUploadingRulesImg(false) }
+  }
+
   async function handleImportKp(file: File) {
     if (!selectedEventId) return
     setImportingKp(true); setImportKpMsg(null)
@@ -325,7 +358,8 @@ export default function AdminPage() {
     { key: 'teams', label: '👥 Команды' },
     { key: 'results', label: '🏆 Результаты' },
     { key: 'questions', label: '❓ Вопросы' },
-    { key: 'info', label: '📄 Страница' },
+    { key: 'info', label: '📄 О проекте' },
+    { key: 'rules', label: '📋 Правила' },
     { key: 'users', label: '👤 Пользователи' },
   ] as const
 
@@ -1186,10 +1220,57 @@ export default function AdminPage() {
         </div>
       )}
 
+      {tab === 'rules' && (
+        <div className="space-y-5">
+          <p className="text-sm text-stone-500">
+            Содержимое страницы <span className="font-medium text-stone-700">/rules</span>. Поддерживается Markdown и картинки.
+          </p>
+          <div className={card}>
+            {!rulesLoaded
+              ? <button className={btn} onClick={loadRulesPage}>Загрузить страницу</button>
+              : (
+                <form onSubmit={handleSaveRules} className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-stone-700 mb-1">Заголовок</label>
+                    <input value={rulesForm.title} onChange={e => setRulesForm({ ...rulesForm, title: e.target.value })} className={input} required />
+                  </div>
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-sm font-medium text-stone-700">
+                        Содержимое
+                        <span className="ml-2 text-xs font-normal text-stone-400">Markdown — **жирный**, # заголовок, ![alt](url)</span>
+                      </label>
+                      <label className={`${btnSm} cursor-pointer ${uploadingRulesImg ? 'opacity-50' : ''}`}>
+                        {uploadingRulesImg ? 'Загрузка...' : '📷 Добавить картинку'}
+                        <input type="file" accept="image/*" className="hidden" disabled={uploadingRulesImg}
+                          onChange={e => { const f = e.target.files?.[0]; if (f) handleRulesImageUpload(f); e.target.value = '' }} />
+                      </label>
+                    </div>
+                    <textarea
+                      value={rulesForm.content}
+                      onChange={e => setRulesForm({ ...rulesForm, content: e.target.value })}
+                      rows={25}
+                      className={`${input} font-mono text-sm`}
+                      placeholder={'# Правила игры\n\n## Формат\n\nОпишите формат игры...\n\n![схема маршрута](/uploads/pages/filename.jpg)'}
+                    />
+                  </div>
+                  <label className="flex items-center gap-2 text-sm text-stone-700 cursor-pointer">
+                    <input type="checkbox" checked={rulesForm.is_published} onChange={e => setRulesForm({ ...rulesForm, is_published: e.target.checked })} />
+                    Опубликовано
+                  </label>
+                  {rulesMsg && <p className={`text-sm ${rulesMsg === 'Сохранено' ? 'text-green-700' : 'text-red-600'}`}>{rulesMsg}</p>}
+                  <button type="submit" className={btn}>Сохранить</button>
+                </form>
+              )
+            }
+          </div>
+        </div>
+      )}
+
       {tab === 'info' && (
         <div className="space-y-5">
           <p className="text-sm text-stone-500">
-            Содержимое страницы <span className="font-medium text-stone-700">/info</span> — правила, информация об организаторах и т.д. Поддерживаются переносы строк.
+            Содержимое страницы <span className="font-medium text-stone-700">/info</span> — информация об организаторах и т.д. Поддерживаются переносы строк.
           </p>
           <div className={card}>
             {!infoLoaded
