@@ -17,7 +17,7 @@ interface Event {
 }
 
 const statusMap: Record<string, { label: string; cls: string }> = {
-  open:     { label: 'Открыта регистрация', cls: 'bg-red-100 text-red-700' },
+  open:     { label: 'Открыта регистрация', cls: 'bg-green-100 text-green-700' },
   closed:   { label: 'Регистрация закрыта', cls: 'bg-stone-100 text-stone-500' },
   finished: { label: 'Завершено',           cls: 'bg-stone-100 text-stone-400' },
 }
@@ -128,6 +128,7 @@ export default function HomePage() {
                       <img
                         src={`${API_URL}/uploads/${post.image_filename}`}
                         alt={post.title}
+                        loading="lazy"
                         className="h-full w-full object-cover cursor-zoom-in"
                         style={{ minHeight: '140px', maxHeight: '240px' }}
                       />

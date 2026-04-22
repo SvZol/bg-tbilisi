@@ -37,8 +37,12 @@ export default function Navbar() {
               Админ
             </Link>
           )}
-          <Link href="/profile" onClick={() => setOpen(false)} className="text-stone-400 hover:text-red-600 text-sm transition-colors md:inline hidden">{user.full_name}</Link>
-          <Link href="/profile" onClick={() => setOpen(false)} className="text-stone-700 hover:text-red-600 font-medium transition-colors uppercase text-sm tracking-wide md:hidden">
+          <Link href="/profile" onClick={() => setOpen(false)}
+            className="text-stone-400 hover:text-red-600 text-sm transition-colors md:inline hidden">
+            {user.full_name}
+          </Link>
+          <Link href="/profile" onClick={() => setOpen(false)}
+            className="text-stone-700 hover:text-red-600 font-medium transition-colors uppercase text-sm tracking-wide md:hidden">
             Профиль
           </Link>
           <button onClick={handleSignOut}
@@ -65,10 +69,10 @@ export default function Navbar() {
     <nav className="bg-white border-b-2 border-red-100">
       <div className="max-w-5xl mx-auto px-4">
         {/* Десктоп */}
-        <div className="hidden md:flex items-center justify-between gap-4">
+        <div className="hidden md:flex items-center justify-between gap-4 py-1">
           <Link href="/" className="flex items-center gap-2 shrink-0">
-            <img src="/logo-icon.png" alt="" className="h-10 w-auto" />
-            <img src="/logo-text.png" alt="ТБИссектриса" className="h-16 w-auto" />
+            <img src="/logo-icon.png" alt="" className="h-8 w-auto" />
+            <img src="/logo-text.png" alt="ТБИссектриса" className="h-12 w-auto" />
           </Link>
           <div className="flex items-center gap-5 text-sm flex-wrap justify-end">
             {links}
@@ -77,13 +81,13 @@ export default function Navbar() {
 
         {/* Мобильный — верхняя строка */}
         <div className="flex md:hidden items-center justify-between py-2">
-          <Link href="/" className="flex items-center gap-2" onClick={() => setOpen(false)}>
-            <img src="/logo-icon.png" alt="" className="h-10 w-auto" />
-            <img src="/logo-text.png" alt="ТБИссектриса" className="h-16 w-auto" />
+          <Link href="/" className="flex items-center gap-2 min-w-0" onClick={() => setOpen(false)}>
+            <img src="/logo-icon.png" alt="" className="h-8 w-auto shrink-0" />
+            <img src="/logo-text.png" alt="ТБИссектриса" className="h-12 w-auto shrink-0" />
           </Link>
           <button
             onClick={() => setOpen(!open)}
-            className="p-2 text-stone-700 hover:text-red-600 transition-colors"
+            className="ml-3 p-2 text-stone-700 hover:text-red-600 transition-colors shrink-0"
             aria-label="Меню"
           >
             {open ? (

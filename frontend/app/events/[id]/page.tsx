@@ -283,83 +283,29 @@ export default function EventDetailPage() {
         </section>
       )}
 
-      {/* Зарегистрированные команды */}
-      {event.status !== 'finished' && (
-        <section>
-          <h2 className="text-xl font-bold text-stone-900 mb-4">
-            Зарегистрированные команды ({teams.length})
-          </h2>
-          {teams.length === 0 ? (
-            <p className="text-stone-400 text-sm border-2 border-dashed border-stone-200 rounded-2xl p-6 text-center">
-              Команд пока нет — будьте первыми!
-            </p>
-          ) : (
-            <div className="space-y-3">
-              {(['adult', 'child'] as const).map(cat => {
-                const catTeams = teams.filter(t => (t.category || 'adult') === cat)
-                if (catTeams.length === 0) return null
-                return (
-                  <div key={cat}>
-                    <p className="text-xs font-semibold text-stone-400 uppercase tracking-wide mb-2">
-                      {catLabel(cat)}
-                    </p>
-                    {catTeams.map(team => (
-                      <div key={team.id} className="bg-white border border-stone-200 rounded-2xl p-4 mb-2">
-                        <div className="flex justify-between items-start mb-2">
-                          <div>
-                            <h3 className="font-bold text-stone-900">{team.name}</h3>
-                            <p className="text-xs text-stone-400 mt-0.5">{catLabel(team.category)}</p>
-                          </div>
-                          <span className="text-xs bg-stone-100 text-stone-600 px-2 py-1 rounded-full font-medium shrink-0">
-                            {team.member_count || team.members.length} уч.
-                          </span>
-                        </div>
-                        {/* Капитан */}
-                        {team.captain_name && (
-                          <p className="text-xs text-stone-500 mb-2">
-                            Капитан: <span className="font-medium text-stone-700">{team.captain_name}</span>
-                          </p>
-                        )}
-                        {/* Участники */}
-                        <div className="flex flex-wrap gap-1.5">
-                          {team.members.map(m => {
-                            const name = m.full_name || m.guest_name || 'Участник'
-                            const isCap = m.role === 'captain'
-                            return (
-                              <span key={m.id} className={`text-xs px-2 py-1 rounded-full border font-medium ${
-                                isCap
-                                  ? 'bg-red-50 border-red-300 text-red-800'
-                                  : 'bg-stone-100 border-stone-200 text-stone-700'
-                              }`}>
-                                {name}
-                              </span>
-                            )
-                          })}
-                        </div>
-                        {team.description && !team.description.startsWith('Импорт') && (
-                          <p className="text-xs text-stone-500 mt-2 italic">{team.description}</p>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )
-              })}
+      {/* Регистрация + Команды */}
+      {event.status !== 'finished' && (() => {
+        const totalMembers = teams.reduce((s, t) => s + (t.member_count || t.members.length), 0)
+        // Стабильный порядок: по индексу (порядок регистрации из API)
+        let globalIdx = 0
+        return (
+          <section className="space-y-4">
+            <div className="flex items-center justify-between gap-4 flex-wrap">
+              <h2 className="text-xl font-bold text-stone-900">
+                Зарегистрированные команды ({teams.length})
+                {totalMembers > 0 && <span className="ml-2 text-sm font-normal text-stone-400">· {totalMembers} уч.</span>}
+              </h2>
+              {event.status === 'open' && !showForm && (
+                <button
+                  onClick={() => user ? setShowForm(true) : router.push('/login')}
+                  className="bg-red-600 text-white px-5 py-2 rounded-xl hover:bg-red-700 font-bold transition-colors text-sm shrink-0"
+                >
+                  + Зарегистрировать команду
+                </button>
+              )}
             </div>
-          )}
-        </section>
-      )}
 
-      {/* Регистрация */}
-      {event.status === 'open' && (
-        <section className="space-y-4">
-          {!showForm ? (
-            <button
-              onClick={() => user ? setShowForm(true) : router.push('/login')}
-              className="bg-red-600 text-white px-7 py-3 rounded-2xl hover:bg-red-700 font-bold transition-colors"
-            >
-              + Зарегистрировать команду
-            </button>
-          ) : (
+            {event.status === 'open' && showForm && (
             <form onSubmit={handleSubmit} className="bg-white border border-stone-200 rounded-2xl p-6 space-y-4">
               <div className="flex justify-between items-center">
                 <h2 className="text-lg font-bold text-stone-900">Новая команда</h2>
@@ -441,8 +387,67 @@ export default function EventDetailPage() {
               </button>
             </form>
           )}
+
+          {/* Список команд */}
+          {teams.length === 0 ? (
+            <p className="text-stone-400 text-sm border-2 border-dashed border-stone-200 rounded-2xl p-6 text-center">
+              Команд пока нет — будьте первыми!
+            </p>
+          ) : (
+            <div className="space-y-3">
+              {(['adult', 'child'] as const).map(cat => {
+                const catTeams = teams.filter(t => (t.category || 'adult') === cat)
+                if (catTeams.length === 0) return null
+                return (
+                  <div key={cat}>
+                    <p className="text-xs font-semibold text-stone-400 uppercase tracking-wide mb-2">{catLabel(cat)}</p>
+                    {catTeams.map(team => {
+                      globalIdx++
+                      return (
+                        <div key={team.id} className="bg-white border border-stone-200 rounded-2xl p-4 mb-2">
+                          <div className="flex justify-between items-start mb-2">
+                            <div className="flex items-start gap-2">
+                              <span className="text-xs font-bold text-stone-400 bg-stone-100 px-2 py-0.5 rounded-full mt-0.5 shrink-0">
+                                #{globalIdx}
+                              </span>
+                              <div>
+                                <h3 className="font-bold text-stone-900">{team.name}</h3>
+                                {team.captain_name && (
+                                  <p className="text-xs text-stone-500 mt-0.5">
+                                    Капитан: <span className="font-medium text-stone-700">{team.captain_name}</span>
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                            <span className="text-xs bg-stone-100 text-stone-600 px-2 py-1 rounded-full font-medium shrink-0">
+                              {team.member_count || team.members.length} уч.
+                            </span>
+                          </div>
+                          <div className="flex flex-wrap gap-1.5">
+                            {team.members.map(m => {
+                              const name = m.full_name || m.guest_name || 'Участник'
+                              const isCap = m.role === 'captain'
+                              return (
+                                <span key={m.id} className={`text-xs px-2 py-1 rounded-full border font-medium ${
+                                  isCap ? 'bg-red-50 border-red-300 text-red-800' : 'bg-stone-100 border-stone-200 text-stone-700'
+                                }`}>{name}</span>
+                              )
+                            })}
+                          </div>
+                          {team.description && !team.description.startsWith('Импорт') && (
+                            <p className="text-xs text-stone-500 mt-2 italic">{team.description}</p>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                )
+              })}
+            </div>
+          )}
         </section>
-      )}
+        )
+      })()}
     </div>
   )
 }
