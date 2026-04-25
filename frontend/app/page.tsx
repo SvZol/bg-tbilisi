@@ -119,7 +119,7 @@ export default function HomePage() {
         <section>
           <h2 className="text-2xl font-bold text-stone-900 mb-6">Новости</h2>
           <div className="space-y-5">
-            {posts.slice(0, 3).map(post => (
+            {posts.map(post => (
               <div key={post.id} className="bg-white border border-stone-200 rounded-2xl overflow-hidden">
                 <div className={`flex gap-0 ${post.image_filename ? 'flex-row' : ''}`}>
                   {post.image_filename && (
