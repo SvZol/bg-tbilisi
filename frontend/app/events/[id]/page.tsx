@@ -185,7 +185,7 @@ export default function EventDetailPage() {
           <span>📅 {new Date(event.starts_at).toLocaleDateString('ru-RU')} — {new Date(event.ends_at).toLocaleDateString('ru-RU')}</span>
           {event.city && <span>📍 {event.city}</span>}
           {event.status !== 'finished' && (
-            <span>⏰ Регистрация до {new Date(event.reg_deadline).toLocaleDateString('ru-RU')}</span>
+            <span>⏰ Регистрация до {new Date(event.reg_deadline).toLocaleString('ru-RU', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}</span>
           )}
           <span>👥 {event.min_team_size}–{event.max_team_size} человек</span>
         </div>

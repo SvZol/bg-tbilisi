@@ -97,7 +97,7 @@ export default function HomePage() {
                   <p>{new Date(event.starts_at).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
                   {event.city && <p>📍 {event.city}</p>}
                   {event.status !== 'finished' && (
-                    <p>Регистрация до {new Date(event.reg_deadline).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })}</p>
+                    <p>Регистрация до {new Date(event.reg_deadline).toLocaleString('ru-RU', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}</p>
                   )}
                 </div>
                 {(() => {
