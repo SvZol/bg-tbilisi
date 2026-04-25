@@ -76,7 +76,7 @@ export default function Navbar() {
         <div className="hidden md:flex items-center justify-between gap-4 py-1">
           <Link href="/" className="flex items-center gap-2 shrink-0">
             <img src="/logo-icon.png" alt="" className="h-24 w-auto" />
-            <img src="/logo-text.png" alt="ТБИссектриса" className="h-32 w-auto" />
+            <img src="/logo-text.png" alt="ТБИссектриса" className="h-14 w-auto" />
           </Link>
           <div className="flex items-center gap-5 text-sm flex-wrap justify-end">
             {links}
@@ -87,7 +87,7 @@ export default function Navbar() {
         <div className="flex md:hidden items-center justify-between py-2">
           <Link href="/" className="flex items-center gap-2 min-w-0" onClick={() => setOpen(false)}>
             <img src="/logo-icon.png" alt="" className="h-16 w-auto shrink-0" />
-            <img src="/logo-text.png" alt="ТБИссектриса" className="h-24 w-auto shrink-0" />
+            <img src="/logo-text.png" alt="ТБИссектриса" className="h-11 w-auto shrink-0" />
           </Link>
           <button
             onClick={() => setOpen(!open)}
