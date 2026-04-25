@@ -756,6 +756,14 @@ export default function AdminPage() {
                   <div className="flex justify-between items-center mb-3 gap-3">
                     <div className="flex items-center gap-2 flex-wrap">
                       <h4 className="font-bold text-stone-900">{team.name}</h4>
+                      {/* Статус дорегистрации капитана */}
+                      {(() => {
+                        const cap = team.members.find((m: any) => m.role === 'captain')
+                        if (!cap) return null
+                        if (cap.user_id && !cap.is_imported) return <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">✓ дорегистрирован</span>
+                        if (cap.user_id) return <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-medium">письмо отправлено</span>
+                        return <span className="text-xs bg-stone-100 text-stone-500 px-2 py-0.5 rounded-full font-medium">ждёт дорегистрации</span>
+                      })()}
                       {/* Кнопка генерации ссылки на дорегистрацию */}
                       <button
                         onClick={async () => {
@@ -795,7 +803,7 @@ export default function AdminPage() {
                   <table className="w-full text-sm">
                     <thead className="bg-stone-50">
                       <tr>
-                        {['Имя', 'Email', 'Роль', 'Статус', ''].map(h => (
+                        {['Имя', 'Email', 'Роль', ''].map(h => (
                           <th key={h} className="text-left px-3 py-2 font-medium text-stone-700">{h}</th>
                         ))}
                       </tr>
@@ -808,11 +816,6 @@ export default function AdminPage() {
                           <td className="px-3 py-2">
                             <span className={`text-xs px-2 py-0.5 rounded-full ${m.role === 'captain' ? 'bg-amber-100 text-amber-800' : 'bg-stone-100 text-stone-700'}`}>
                               {m.role === 'captain' ? '👑 Капитан' : 'Участник'}
-                            </span>
-                          </td>
-                          <td className="px-3 py-2">
-                            <span className={`text-xs px-2 py-0.5 rounded-full ${m.is_registered ? 'bg-green-100 text-green-800' : 'bg-stone-100 text-stone-600'}`}>
-                              {m.is_registered ? 'Зарег.' : 'Гость'}
                             </span>
                           </td>
                           <td className="px-3 py-2">
