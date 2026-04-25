@@ -137,6 +137,26 @@ def reschedule_event(
     return {"ok": True, "notified": len(notified)}
 
 
+@router.patch("/events/{event_id}/reg-deadline")
+def update_reg_deadline(
+    event_id: UUID,
+    data: dict,
+    db: Session = Depends(get_db),
+    admin=Depends(get_current_admin)
+):
+    """Update registration deadline silently (no email notifications)."""
+    event = db.query(Event).filter(Event.id == event_id).first()
+    if not event:
+        raise HTTPException(404, "Мероприятие не найдено")
+    from datetime import datetime as dt
+    reg_deadline = data.get("reg_deadline")
+    if not reg_deadline:
+        raise HTTPException(400, "reg_deadline обязателен")
+    event.reg_deadline = dt.fromisoformat(reg_deadline)
+    db.commit()
+    return {"ok": True, "reg_deadline": event.reg_deadline.isoformat()}
+
+
 @router.post("/events/{event_id}/notify-new")
 def notify_new_event(
     event_id: UUID,

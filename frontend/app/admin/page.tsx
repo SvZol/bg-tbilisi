@@ -57,6 +57,10 @@ export default function AdminPage() {
   const [rescheduleMsg, setRescheduleMsg] = useState('')
   const [notifyMsg, setNotifyMsg] = useState('')
 
+  // Изменение дедлайна без уведомлений
+  const [deadlineEditId, setDeadlineEditId] = useState<string | null>(null)
+  const [deadlineValue, setDeadlineValue] = useState('')
+
   const [selectedEventId, setSelectedEventId] = useState('')
   const [eventTeams, setEventTeams] = useState<Team[]>([])
   const [scoreboard, setScoreboard] = useState<{ adult: any[]; child: any[] } | null>(null)
@@ -471,6 +475,10 @@ export default function AdminPage() {
                         <option value="closed">Закрыто</option>
                         <option value="finished">Завершено</option>
                       </select>
+                      <button onClick={() => { setDeadlineEditId(ev.id); setDeadlineValue(ev.reg_deadline.slice(0,16)) }}
+                        className="text-sm border border-stone-300 px-3 py-1.5 rounded-xl hover:border-red-400 text-stone-700 transition-colors">
+                        Дедлайн
+                      </button>
                       <button onClick={() => { setReschedulingId(ev.id); setRescheduleMsg(''); setRescheduleForm({ starts_at: ev.starts_at.slice(0,16), ends_at: ev.ends_at.slice(0,16), reg_deadline: ev.reg_deadline.slice(0,16) }) }}
                         className="text-sm border border-stone-300 px-3 py-1.5 rounded-xl hover:border-red-400 text-stone-700 transition-colors">
                         Перенести
@@ -516,6 +524,26 @@ export default function AdminPage() {
                           setEditingEventId(null)
                         }} className={btnSm}>Сохранить</button>
                         <button onClick={() => setEditingEventId(null)}
+                          className="text-sm text-stone-500 hover:text-stone-700 px-3 py-1.5">Отмена</button>
+                      </div>
+                    </div>
+                  )}
+
+                  {deadlineEditId === ev.id && (
+                    <div className="mt-4 pt-4 border-t border-stone-200 flex flex-wrap items-end gap-3">
+                      <div>
+                        <label className="block text-xs font-medium text-stone-600 mb-1">Дедлайн регистрации (без уведомлений)</label>
+                        <input type="datetime-local" value={deadlineValue}
+                          onChange={e => setDeadlineValue(e.target.value)}
+                          className={input} />
+                      </div>
+                      <div className="flex gap-2">
+                        <button onClick={async () => {
+                          await api.patch(`/admin/events/${ev.id}/reg-deadline`, { reg_deadline: deadlineValue })
+                          setEvents(events.map(e => e.id === ev.id ? { ...e, reg_deadline: deadlineValue } : e))
+                          setDeadlineEditId(null)
+                        }} className={btnSm}>Сохранить</button>
+                        <button onClick={() => setDeadlineEditId(null)}
                           className="text-sm text-stone-500 hover:text-stone-700 px-3 py-1.5">Отмена</button>
                       </div>
                     </div>
