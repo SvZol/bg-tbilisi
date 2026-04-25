@@ -94,7 +94,7 @@ export default function HomePage() {
                 </h3>
                 <p className="text-stone-500 text-sm mb-4 line-clamp-2">{event.description}</p>
                 <div className="text-xs text-stone-400 space-y-1 mb-3">
-                  <p>{new Date(event.starts_at).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+                  <p>{new Date(event.starts_at).toLocaleString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
                   {event.city && <p>📍 {event.city}</p>}
                   {event.status !== 'finished' && (
                     <p>Регистрация до {new Date(event.reg_deadline).toLocaleString('ru-RU', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}</p>

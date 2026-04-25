@@ -182,7 +182,7 @@ export default function EventDetailPage() {
         </div>
         <p className="text-stone-600 mb-4 leading-relaxed">{event.description}</p>
         <div className="flex flex-wrap gap-4 text-sm text-stone-500">
-          <span>📅 {new Date(event.starts_at).toLocaleDateString('ru-RU')} — {new Date(event.ends_at).toLocaleDateString('ru-RU')}</span>
+          <span>📅 {new Date(event.starts_at).toLocaleString('ru-RU', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })} — {new Date(event.ends_at).toLocaleString('ru-RU', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}</span>
           {event.city && <span>📍 {event.city}</span>}
           {event.status !== 'finished' && (
             <span>⏰ Регистрация до {new Date(event.reg_deadline).toLocaleString('ru-RU', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}</span>
