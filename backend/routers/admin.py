@@ -1058,33 +1058,8 @@ async def import_results_excel(
         # Для оригинального формата: одна колонка на команду (только балл, без ответа)
         team_entries = [(team_map_by_name.get(n.lower().strip()), team_col_start + i, None) for i, n in enumerate(team_names)]
 
-    # Авто-создаём недостающие команды (только для оригинального формата)
+    # Команды не создаём — только матчим по имени из БД
     auto_created = 0
-    if not use_id_template:
-        if 'регистрация' in wb.sheetnames:
-            reg_ws = wb['регистрация']
-            for reg_row in reg_ws.iter_rows(values_only=True):
-                if not reg_row[2]:
-                    continue
-                name = str(reg_row[2]).strip()
-                if not name or name in ('None', 'nan'):
-                    continue
-                if name.lower() not in team_map_by_name:
-                    new_team = Team(event_id=event_id, name=name, status='registered', created_by=admin.id)
-                    db.add(new_team)
-                    db.flush()
-                    team_map_by_name[name.lower()] = new_team
-                    auto_created += 1
-        else:
-            for name in team_names:
-                if name.lower() not in team_map_by_name:
-                    new_team = Team(event_id=event_id, name=name, status='registered', created_by=admin.id)
-                    db.add(new_team)
-                    db.flush()
-                    team_map_by_name[name.lower()] = new_team
-                    auto_created += 1
-        # Обновляем team_entries после авто-создания
-        team_entries = [(team_map_by_name.get(n.lower().strip()), team_col_start + i, None) for i, n in enumerate(team_names)]
 
     # Читаем лист 'ответы' — реальные ответы команд и правильные ответы
     # answers_map[(kp_num, q_type)] = {team_name_lower: answer_str}
@@ -1232,6 +1207,18 @@ async def import_results_excel(
         "unmatched_teams": list(unmatched),
         "teams_found": teams_found,
     }
+
+
+@router.delete("/events/{event_id}/results")
+def clear_event_results(event_id: UUID, db: Session = Depends(get_db), admin=Depends(get_current_admin)):
+    """Delete all team question results for an event."""
+    from models.content import EventQuestion, TeamQuestionResult
+    q_ids = [q.id for q in db.query(EventQuestion).filter(EventQuestion.event_id == event_id).all()]
+    deleted = 0
+    if q_ids:
+        deleted = db.query(TeamQuestionResult).filter(TeamQuestionResult.question_id.in_(q_ids)).delete(synchronize_session=False)
+    db.commit()
+    return {"deleted": deleted}
 
 
 # --- Публичный доступ к вопросам ---

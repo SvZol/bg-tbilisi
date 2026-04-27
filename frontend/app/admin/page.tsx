@@ -1006,6 +1006,14 @@ export default function AdminPage() {
                             onChange={e => { const f = e.target.files?.[0]; if (f) handleImportResults(f); e.target.value = '' }} />
                         </span>
                       </label>
+                      <button onClick={async () => {
+                        if (!confirm('Удалить все результаты команд? Это действие нельзя отменить.')) return
+                        await api.delete(`/admin/events/${selectedEventId}/results`)
+                        setQResults({})
+                        setImportResMsg({ type: 'ok', text: 'Результаты удалены' })
+                      }} className="text-sm border border-red-200 text-red-500 hover:bg-red-50 px-3 py-1.5 rounded-lg">
+                        🗑 Очистить результаты
+                      </button>
                     </div>
                     {importResMsg && (
                       <p className={`text-sm ${importResMsg.type === 'ok' ? 'text-green-700' : 'text-red-700'}`}>
