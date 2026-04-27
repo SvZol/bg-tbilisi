@@ -730,32 +730,41 @@ async def import_kp_excel(
         db.query(TeamQuestionResult).filter(TeamQuestionResult.question_id.in_(old_q_ids)).delete(synchronize_session=False)
     db.query(EventQuestion).filter(EventQuestion.event_id == event_id).delete()
 
+    SKIP_TYPES = {'тип кп', 'header', ''}
     created = 0
     for row in rows[1:]:  # skip header
         if not row[4]:
             continue
         kp_str = str(row[4]).strip()
-        if not kp_str.startswith('КП'):
+        if not kp_str.upper().startswith('КП'):
             continue
         kp_type = str(row[1]).strip() if row[1] else ""
-        if kp_type not in ('КП', 'фотоКП'):
+        if kp_type.lower() in SKIP_TYPES:
             continue
         try:
             num = int(kp_str.split('-')[1])
         except Exception:
             continue
 
-        # Задание КП
-        task_text = str(row[8]).strip() if row[8] else f"КП-{num:02d}"
+        task_text = str(row[8]).strip() if row[8] else None
         answer = str(row[9]).strip() if row[9] else None
         if answer == 'None':
             answer = None
 
-        db.add(EventQuestion(
-            event_id=event_id, number=num,
-            text=task_text, correct_answer=answer, max_points=1
-        ))
-        created += 1
+        # Задание КП (если есть текст задания)
+        if task_text and task_text != 'None':
+            db.add(EventQuestion(
+                event_id=event_id, number=num,
+                text=task_text, correct_answer=answer, max_points=1
+            ))
+            created += 1
+        elif answer and answer != 'None':
+            # Ответ есть, задания нет — создаём с дефолтным текстом
+            db.add(EventQuestion(
+                event_id=event_id, number=num,
+                text=f"КП-{num:02d}", correct_answer=answer, max_points=1
+            ))
+            created += 1
 
         # Задача (если есть)
         puzzle_text = str(row[11]).strip() if row[11] else None
