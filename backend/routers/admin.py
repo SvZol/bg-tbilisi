@@ -1024,8 +1024,8 @@ async def import_results_excel(
     # Загружаем команды из БД
     import re as _re
     def _norm(s: str) -> str:
-        """Normalize team name for fuzzy matching: lowercase, strip spaces and ^"""
-        return _re.sub(r'[\s\^]', '', s.lower())
+        """Normalize team name: lowercase, keep only letters and digits"""
+        return _re.sub(r'[^a-zа-яё0-9]', '', s.lower())
 
     db_teams = db.query(Team).filter(Team.event_id == event_id).all()
     team_map_by_name = {t.name.lower().strip(): t for t in db_teams}
