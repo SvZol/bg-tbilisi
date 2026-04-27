@@ -1214,12 +1214,23 @@ async def import_results_excel(
     # Собираем имена ДО commit (после commit объекты становятся expired)
     teams_found = [str(e[0].name) for e in team_entries if e[0] is not None]
 
+    # Debug: показываем нормализованные имена для диагностики
+    debug_matching = []
+    for i, (db_team, _, _) in enumerate(team_entries):
+        raw = team_names[i] if i < len(team_names) else '?'
+        debug_matching.append({
+            "excel": raw,
+            "excel_norm": _norm(raw),
+            "matched": db_team.name if db_team else None,
+        })
+
     db.commit()
     return {
         "created": int(created),
         "auto_created_teams": int(auto_created),
         "unmatched_teams": list(unmatched),
         "teams_found": teams_found,
+        "debug_matching": debug_matching,
     }
 
 
