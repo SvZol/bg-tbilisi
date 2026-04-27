@@ -1022,9 +1022,21 @@ async def import_results_excel(
     rows = list(ws.iter_rows(values_only=True))
 
     # Загружаем команды из БД
+    import re as _re
+    def _norm(s: str) -> str:
+        """Normalize team name for fuzzy matching: lowercase, strip spaces and ^"""
+        return _re.sub(r'[\s\^]', '', s.lower())
+
     db_teams = db.query(Team).filter(Team.event_id == event_id).all()
     team_map_by_name = {t.name.lower().strip(): t for t in db_teams}
+    team_map_by_norm = {_norm(t.name): t for t in db_teams}  # normalized fallback
     team_map_by_id = {str(t.id): t for t in db_teams}
+
+    def _find_team(name: str):
+        exact = team_map_by_name.get(name.lower().strip())
+        if exact:
+            return exact
+        return team_map_by_norm.get(_norm(name))
 
     team_col_start = 3  # cols 3+ = team data
     # team_entries: list of (Team|None, ans_col_idx, pts_col_idx)
@@ -1056,7 +1068,7 @@ async def import_results_excel(
         if not team_names:
             raise HTTPException(400, "Не найдена строка с названиями команд")
         # Для оригинального формата: одна колонка на команду (только балл, без ответа)
-        team_entries = [(team_map_by_name.get(n.lower().strip()), team_col_start + i, None) for i, n in enumerate(team_names)]
+        team_entries = [(_find_team(n), team_col_start + i, None) for i, n in enumerate(team_names)]
 
     # Команды не создаём — только матчим по имени из БД
     auto_created = 0

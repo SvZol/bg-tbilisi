@@ -847,6 +847,22 @@ export default function AdminPage() {
           {eventSelector((id) => { loadEventData(id); loadScoreboard(id) })}
           {selectedEventId && (
             <>
+              {/* Очистка результатов */}
+              <div className={`${card} flex items-center justify-between gap-4 flex-wrap`}>
+                <div>
+                  <p className="font-bold text-stone-900">Результаты команд</p>
+                  <p className="text-sm text-stone-500">Удалить все загруженные очки команд по КП</p>
+                </div>
+                <button onClick={async () => {
+                  if (!confirm('Удалить все результаты команд? Это действие нельзя отменить.')) return
+                  await api.delete(`/admin/events/${selectedEventId}/results`)
+                  setQResults({})
+                  loadScoreboard(selectedEventId)
+                }} className="text-sm border border-red-200 text-red-500 hover:bg-red-50 px-4 py-2 rounded-xl">
+                  🗑 Очистить результаты
+                </button>
+              </div>
+
               {/* PDF раздатки */}
               <div className={`${card} flex items-center gap-4 flex-wrap`}>
                 <div className="flex-1">
