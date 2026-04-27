@@ -85,6 +85,10 @@ export default function AdminPage() {
   const [importResMsg, setImportResMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
   const [importingKp, setImportingKp] = useState(false)
   const [importingRes, setImportingRes] = useState(false)
+  const [pendingResFile, setPendingResFile] = useState<File | null>(null)
+  const [unmatchedTeams, setUnmatchedTeams] = useState<string[]>([])
+  const [allDbTeams, setAllDbTeams] = useState<string[]>([])
+  const [nameMap, setNameMap] = useState<Record<string, string>>({})
   const [importTeamsMsg, setImportTeamsMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
   const [importingTeams, setImportingTeams] = useState(false)
   const [importTeamsResult, setImportTeamsResult] = useState<any[] | null>(null)
@@ -340,19 +344,33 @@ export default function AdminPage() {
     setUsersLoaded(true)
   }
 
-  async function handleImportResults(file: File) {
+  async function handleImportResults(file: File, extraNameMap?: Record<string, string>) {
     if (!selectedEventId) return
     setImportingRes(true); setImportResMsg(null)
     try {
-      const fd = new FormData(); fd.append('file', file)
+      const fd = new FormData()
+      fd.append('file', file)
+      if (extraNameMap && Object.keys(extraNameMap).length > 0)
+        fd.append('name_map', JSON.stringify(extraNameMap))
       const res = await api.post(`/admin/events/${selectedEventId}/import-results-excel`, fd, {
         headers: { 'Content-Type': 'multipart/form-data' }
       })
       const d = res.data
-      let text = `Создано ${d.created} результатов. Совпало команд: ${d.teams_found?.length || 0}.`
-      if (d.unmatched_teams?.length) text += ` Не найдено: ${d.unmatched_teams.join(', ')}`
-      setImportResMsg({ type: d.unmatched_teams?.length ? 'err' : 'ok', text })
-      await loadQuestionsData(selectedEventId)
+      if (d.unmatched_teams?.length) {
+        setPendingResFile(file)
+        setUnmatchedTeams(d.unmatched_teams)
+        setAllDbTeams(d.all_db_teams || [])
+        setNameMap(prev => {
+          const next = { ...prev }
+          d.unmatched_teams.forEach((n: string) => { if (!next[n]) next[n] = '' })
+          return next
+        })
+        setImportResMsg({ type: 'err', text: `Не найдено ${d.unmatched_teams.length} команд. Укажите соответствие ниже.` })
+      } else {
+        setPendingResFile(null); setUnmatchedTeams([]); setAllDbTeams([]); setNameMap({})
+        setImportResMsg({ type: 'ok', text: `✓ Создано ${d.created} результатов. Совпало команд: ${d.teams_found?.length || 0}.` })
+        await loadQuestionsData(selectedEventId)
+      }
     } catch (e: any) {
       setImportResMsg({ type: 'err', text: e?.response?.data?.detail || 'Ошибка импорта' })
     } finally { setImportingRes(false) }
@@ -1033,6 +1051,36 @@ export default function AdminPage() {
                       <p className={`text-sm ${importResMsg.type === 'ok' ? 'text-green-700' : 'text-red-700'}`}>
                         {importResMsg.type === 'ok' ? '✓ ' : '⚠ '}{importResMsg.text}
                       </p>
+                    )}
+                    {unmatchedTeams.length > 0 && pendingResFile && (
+                      <div className="border border-amber-200 bg-amber-50 rounded-xl p-3 space-y-3 mt-2">
+                        <p className="text-xs font-semibold text-amber-800">Укажите соответствие для незнакомых команд:</p>
+                        <div className="space-y-2">
+                          {unmatchedTeams.map(excelName => (
+                            <div key={excelName} className="flex items-center gap-2 flex-wrap">
+                              <span className="text-xs text-stone-700 font-mono bg-stone-100 px-2 py-0.5 rounded shrink-0 max-w-[180px] truncate" title={excelName}>{excelName}</span>
+                              <span className="text-stone-400 text-xs">→</span>
+                              <select
+                                value={nameMap[excelName] || ''}
+                                onChange={e => setNameMap(prev => ({ ...prev, [excelName]: e.target.value }))}
+                                className="flex-1 min-w-[140px] border border-stone-300 rounded-lg px-2 py-1 text-sm text-stone-900 bg-white focus:outline-none focus:ring-2 focus:ring-red-400"
+                              >
+                                <option value="">— пропустить —</option>
+                                {allDbTeams.map(dbName => (
+                                  <option key={dbName} value={dbName}>{dbName}</option>
+                                ))}
+                              </select>
+                            </div>
+                          ))}
+                        </div>
+                        <button
+                          onClick={() => { if (pendingResFile) handleImportResults(pendingResFile, nameMap) }}
+                          disabled={importingRes}
+                          className={`${btnSm} ${importingRes ? 'opacity-50 pointer-events-none' : ''}`}
+                        >
+                          {importingRes ? 'Импорт...' : '↺ Применить и импортировать заново'}
+                        </button>
+                      </div>
                     )}
                   </div>
                 </div>

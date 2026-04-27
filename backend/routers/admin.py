@@ -756,14 +756,28 @@ async def import_kp_excel(
 
     rows = list(ws.iter_rows(values_only=True))
 
-    # Удаляем старые результаты и вопросы
-    old_q_ids = [q.id for q in db.query(EventQuestion).filter(EventQuestion.event_id == event_id).all()]
-    if old_q_ids:
-        db.query(TeamQuestionResult).filter(TeamQuestionResult.question_id.in_(old_q_ids)).delete(synchronize_session=False)
-    db.query(EventQuestion).filter(EventQuestion.event_id == event_id).delete()
+    # Загружаем существующие вопросы для upsert (не удаляем — чтобы можно было дополнять после публикации)
+    existing_qs = {q.number: q for q in db.query(EventQuestion).filter(EventQuestion.event_id == event_id).all()}
+
+    def _upsert_q(number: int, kp_type: str, text: str, correct_answer, max_points: int):
+        """Создаёт вопрос или обновляет существующий по номеру."""
+        if number in existing_qs:
+            q = existing_qs[number]
+            q.kp_type = kp_type
+            q.text = text
+            if correct_answer is not None:
+                q.correct_answer = correct_answer
+            return False  # updated
+        else:
+            db.add(EventQuestion(
+                event_id=event_id, number=number, kp_type=kp_type,
+                text=text, correct_answer=correct_answer, max_points=max_points
+            ))
+            return True  # created
 
     SKIP_TYPES = {'тип кп', 'header', ''}
     created = 0
+    updated = 0
     for row in rows[1:]:  # skip header
         if not row[4]:
             continue
@@ -788,24 +802,18 @@ async def import_kp_excel(
 
         # Задание КП (если есть текст задания или ответ)
         if task_text and task_text != 'None':
-            db.add(EventQuestion(
-                event_id=event_id, number=num, kp_type=kp_type,
-                text=task_text, correct_answer=answer, max_points=1
-            ))
-            created += 1
+            is_new = _upsert_q(num, kp_type, task_text, answer, 1)
+            if is_new: created += 1
+            else: updated += 1
         elif answer and answer != 'None':
-            db.add(EventQuestion(
-                event_id=event_id, number=num, kp_type=kp_type,
-                text=f"КП-{num:02d}", correct_answer=answer, max_points=1
-            ))
-            created += 1
+            is_new = _upsert_q(num, kp_type, f"КП-{num:02d}", answer, 1)
+            if is_new: created += 1
+            else: updated += 1
         elif kp_type in ('Старт', 'Финиш'):
-            # Старт и Финиш без задания — всё равно создаём
-            db.add(EventQuestion(
-                event_id=event_id, number=num, kp_type=kp_type,
-                text=kp_type, correct_answer=None, max_points=0
-            ))
-            created += 1
+            # Старт и Финиш без задания — всё равно создаём/обновляем
+            is_new = _upsert_q(num, kp_type, kp_type, None, 0)
+            if is_new: created += 1
+            else: updated += 1
 
         # Задача (если есть)
         puzzle_text = str(row[11]).strip() if row[11] else None
@@ -813,15 +821,16 @@ async def import_kp_excel(
         if puzzle_text and puzzle_text != 'None':
             if puzzle_answer == 'None':
                 puzzle_answer = None
-            db.add(EventQuestion(
-                event_id=event_id, number=num + 100, kp_type='Задача',
-                text=f"Задача: {puzzle_text}",
-                correct_answer=puzzle_answer, max_points=1
-            ))
-            created += 1
+            is_new = _upsert_q(num + 100, 'Задача', f"Задача: {puzzle_text}", puzzle_answer, 1)
+            if is_new: created += 1
+            else: updated += 1
 
     db.commit()
-    return {"created": created, "message": f"Создано {created} вопросов (задания + задачи)"}
+    parts = []
+    if created: parts.append(f"добавлено {created}")
+    if updated: parts.append(f"обновлено {updated}")
+    msg = "Вопросов " + ", ".join(parts) if parts else "Нет изменений"
+    return {"created": created, "updated": updated, "message": msg}
 
 
 # --- Импорт команд из Google-формы (Excel) ---
@@ -989,6 +998,7 @@ async def import_teams_excel(
 async def import_results_excel(
     event_id: UUID,
     file: UploadFile = File(...),
+    name_map: str = None,  # JSON: {"excel_name": "db_team_name", ...}
     db: Session = Depends(get_db),
     admin=Depends(get_current_admin)
 ):
@@ -1034,10 +1044,25 @@ async def import_results_excel(
     team_map_by_norm = {_norm(t.name): t for t in db_teams}  # normalized fallback
     team_map_by_id = {str(t.id): t for t in db_teams}
 
+    # Парсим ручной маппинг если передан
+    import json as _json
+    manual_map: dict = {}
+    if name_map:
+        try:
+            manual_map = _json.loads(name_map)
+        except Exception:
+            pass
+
     def _find_team(name: str):
+        # Сначала проверяем ручной маппинг
+        mapped = manual_map.get(name)
+        if mapped:
+            return team_map_by_name.get(mapped.lower().strip())
+        # Точное совпадение
         exact = team_map_by_name.get(name.lower().strip())
         if exact:
             return exact
+        # Нормализованное совпадение
         return team_map_by_norm.get(_norm(name))
 
     team_col_start = 3  # cols 3+ = team data
@@ -1219,9 +1244,9 @@ async def import_results_excel(
     db.commit()
     return {
         "created": int(created),
-        "auto_created_teams": int(auto_created),
         "unmatched_teams": list(unmatched),
         "teams_found": teams_found,
+        "all_db_teams": [t.name for t in db_teams],
     }
 
 
