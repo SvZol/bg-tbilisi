@@ -31,7 +31,7 @@ function kpMeta(num: number, kp_type?: string | null) {
   if (b >= 31 && b <= 39)return { border: 'border-green-500',  bg: 'bg-green-50',   badge: 'bg-green-600 text-white',         label: 'ФотоКП' }
   if (b === 99)          return { border: 'border-yellow-400', bg: 'bg-yellow-50',  badge: 'bg-yellow-500 text-yellow-900',   label: 'Финиш' }
   if (num >= 100)        return { border: 'border-blue-400',   bg: 'bg-blue-50',    badge: 'bg-blue-500 text-white',          label: 'Задача' }
-  return                        { border: 'border-stone-200',  bg: 'bg-white',      badge: 'bg-stone-500 text-white',         label: 'КП' }
+  return                        { border: 'border-stone-200',  bg: 'bg-white',      badge: 'bg-stone-500 text-white',         label: 'Адрес' }
 }
 
 export default function AdminPage() {
