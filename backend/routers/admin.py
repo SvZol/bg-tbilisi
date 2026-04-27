@@ -757,6 +757,9 @@ async def import_kp_excel(
             num = int(kp_str.split('-')[1])
         except Exception:
             continue
+        # Финиш всегда хранится под номером 99 (иначе конфликтует со Стартом в группировке)
+        if kp_type == 'Финиш':
+            num = 99
 
         task_text = str(row[8]).strip() if row[8] else None
         answer = str(row[9]).strip() if row[9] else None
