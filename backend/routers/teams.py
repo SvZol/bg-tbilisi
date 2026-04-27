@@ -333,7 +333,7 @@ def get_team_results(team_id: UUID, db: Session = Depends(get_db)):
             key = 'zadacha'
 
         if kp_num not in kp_map:
-            kp_map[kp_num] = {}
+            kp_map[kp_num] = {'kp_type': q.kp_type}
         kp_map[kp_num][key] = {
             'text': q.text,
             'correct_answer': q.correct_answer,

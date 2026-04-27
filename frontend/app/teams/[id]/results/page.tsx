@@ -6,6 +6,7 @@ import api from '@/lib/api'
 
 interface KpResult {
   kp_number: number
+  kp_type?: string | null
   zadanie?: { text: string; correct_answer: string | null; team_answer: string | null; points_earned: number; image_filename?: string | null }
   zadacha?: { text: string; correct_answer: string | null; team_answer: string | null; points_earned: number; image_filename?: string | null }
 }
@@ -15,15 +16,19 @@ interface EventInfo { id: string; results_pdf: string | null }
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
-// Тип и цвет КП по номеру
-function kpMeta(num: number) {
+// Тип и цвет КП по типу (и номеру как запасной вариант)
+function kpMeta(num: number, kp_type?: string | null) {
+  const t = kp_type?.toLowerCase() ?? ''
+  if (t === 'старт')   return { border: 'border-yellow-400', bg: 'bg-yellow-50',  label: 'bg-yellow-400', text: 'text-yellow-900', name: 'Старт' }
+  if (t === 'финиш')   return { border: 'border-yellow-400', bg: 'bg-yellow-50',  label: 'bg-yellow-500', text: 'text-yellow-900', name: 'Финиш' }
+  if (t === 'фотокп')  return { border: 'border-green-400',  bg: 'bg-green-50',   label: 'bg-green-600',  text: 'text-white',      name: 'ФотоКП' }
+  if (t === 'задача')  return { border: 'border-blue-400',   bg: 'bg-blue-50',    label: 'bg-blue-500',   text: 'text-white',      name: 'Задача' }
+  if (t === 'загадка') return { border: 'border-violet-400', bg: 'bg-violet-50',  label: 'bg-violet-600', text: 'text-white',      name: 'Загадка' }
   const b = num < 100 ? num : num - 100
-  if (b === 0)          return { border: 'border-yellow-400', bg: 'bg-yellow-50',  label: 'bg-yellow-400', text: 'text-yellow-800', name: 'Старт' }
-  if (b >= 1 && b <=19) return { border: 'border-red-400', bg: 'bg-red-50',  label: 'bg-red-600', text: 'text-white',       name: 'КП' }
-  if (b >= 21 && b<=29) return { border: 'border-blue-400',   bg: 'bg-blue-50',    label: 'bg-blue-500',   text: 'text-white',       name: 'КП↕' }
-  if (b >= 31 && b<=39) return { border: 'border-green-400',  bg: 'bg-green-50',   label: 'bg-green-600',  text: 'text-white',       name: 'Фото' }
-  if (b === 99)         return { border: 'border-yellow-400', bg: 'bg-yellow-50',  label: 'bg-yellow-400', text: 'text-yellow-800',  name: 'Финиш' }
-  return                       { border: 'border-stone-300',  bg: 'bg-white',      label: 'bg-stone-700',  text: 'text-white',       name: 'КП' }
+  if (b === 0)         return { border: 'border-yellow-400', bg: 'bg-yellow-50',  label: 'bg-yellow-400', text: 'text-yellow-900', name: 'Старт' }
+  if (b === 99)        return { border: 'border-yellow-400', bg: 'bg-yellow-50',  label: 'bg-yellow-500', text: 'text-yellow-900', name: 'Финиш' }
+  if (b >= 31 && b<=39)return { border: 'border-green-400',  bg: 'bg-green-50',   label: 'bg-green-600',  text: 'text-white',      name: 'ФотоКП' }
+  return                      { border: 'border-stone-300',  bg: 'bg-white',      label: 'bg-stone-700',  text: 'text-white',      name: 'Адрес' }
 }
 
 function AnswerRow({ label, item, isTask }: {
@@ -157,7 +162,7 @@ export default function TeamResultsPage() {
           <div className="space-y-3">
             {results.map(row => {
               const base = row.kp_number
-              const meta = kpMeta(base)
+              const meta = kpMeta(base, row.kp_type)
               const kpTotal = (row.zadanie?.points_earned ?? 0) + (row.zadacha?.points_earned ?? 0)
               return (
                 <div key={row.kp_number} className={`rounded-2xl border-2 overflow-hidden ${meta.border}`}>
