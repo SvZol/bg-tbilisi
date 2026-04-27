@@ -13,6 +13,7 @@ migrations = [
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMP",
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS is_imported BOOLEAN DEFAULT FALSE",
     "CREATE UNIQUE INDEX IF NOT EXISTS uq_teams_invite_code ON teams (invite_code) WHERE invite_code IS NOT NULL",
+    "ALTER TABLE event_questions ADD COLUMN IF NOT EXISTS kp_type VARCHAR",
 ]
 
 with engine.connect() as conn:

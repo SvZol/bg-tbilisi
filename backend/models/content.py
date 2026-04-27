@@ -53,6 +53,7 @@ class EventQuestion(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     event_id = Column(UUID(as_uuid=True), ForeignKey("events.id"), nullable=False)
     number = Column(Integer, nullable=False)
+    kp_type = Column(String, nullable=True)  # КП, фотоКП, Старт, Финиш, Задача и т.д.
     text = Column(Text, nullable=False)
     correct_answer = Column(Text, nullable=True)
     max_points = Column(Integer, default=1)

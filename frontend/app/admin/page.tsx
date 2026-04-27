@@ -8,7 +8,7 @@ interface Event { id: string; title: string; status: string; starts_at: string; 
 interface Post { id: string; title: string; content: string; is_published: boolean; image_filename: string | null; created_at: string }
 interface TeamMember { id: string; user_id: string | null; guest_name: string | null; guest_email: string | null; display_name: string | null; display_email: string | null; role: string; is_registered: boolean; last_login_at: string | null; is_imported: boolean }
 interface Team { id: string; name: string; status: string; category: string; members: TeamMember[] }
-interface Question { id: string; number: number; text: string; correct_answer: string | null; max_points: number; is_published: boolean; image_filename?: string | null }
+interface Question { id: string; number: number; kp_type: string | null; text: string; correct_answer: string | null; max_points: number; is_published: boolean; image_filename?: string | null }
 
 const input = "w-full border border-stone-300 rounded-xl px-3 py-2 text-stone-900 focus:outline-none focus:ring-2 focus:ring-red-400 bg-white"
 const btn = "bg-red-600 text-white px-5 py-2 rounded-xl hover:bg-red-700 font-medium transition-colors"
@@ -17,14 +17,20 @@ const card = "bg-white border border-stone-200 rounded-2xl p-5"
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
-// Цвет и метаданные КП по номеру
-function kpMeta(num: number) {
+// Цвет и метаданные КП по типу (и номеру как запасной вариант)
+function kpMeta(num: number, kp_type?: string | null) {
+  const t = kp_type?.toLowerCase() ?? ''
+  if (t === 'старт')   return { border: 'border-yellow-400', bg: 'bg-yellow-50',  badge: 'bg-yellow-400 text-yellow-900',  label: 'Старт' }
+  if (t === 'финиш')   return { border: 'border-yellow-400', bg: 'bg-yellow-50',  badge: 'bg-yellow-500 text-yellow-900',  label: 'Финиш' }
+  if (t === 'фотокп')  return { border: 'border-green-500',  bg: 'bg-green-50',   badge: 'bg-green-600 text-white',         label: 'ФотоКП' }
+  if (t === 'задача')  return { border: 'border-blue-400',   bg: 'bg-blue-50',    badge: 'bg-blue-500 text-white',          label: 'Задача' }
+  if (t === 'загадка') return { border: 'border-violet-400', bg: 'bg-violet-50',  badge: 'bg-violet-600 text-white',        label: 'Загадка' }
+  // Запасной вариант по номеру
   const b = num < 100 ? num : num - 100
   if (b === 0)           return { border: 'border-yellow-400', bg: 'bg-yellow-50',  badge: 'bg-yellow-400 text-yellow-900',  label: 'Старт' }
-  if (b >= 1 && b <= 19) return { border: 'border-red-400', bg: 'bg-red-50',  badge: 'bg-red-600 text-white',        label: 'КП' }
-  if (b >= 21 && b <= 29)return { border: 'border-blue-400',   bg: 'bg-blue-50',    badge: 'bg-blue-500 text-white',          label: 'КП↕' }
   if (b >= 31 && b <= 39)return { border: 'border-green-500',  bg: 'bg-green-50',   badge: 'bg-green-600 text-white',         label: 'ФотоКП' }
-  if (b === 99)          return { border: 'border-yellow-400', bg: 'bg-yellow-50',  badge: 'bg-yellow-400 text-yellow-900',   label: 'Финиш' }
+  if (b === 99)          return { border: 'border-yellow-400', bg: 'bg-yellow-50',  badge: 'bg-yellow-500 text-yellow-900',   label: 'Финиш' }
+  if (num >= 100)        return { border: 'border-blue-400',   bg: 'bg-blue-50',    badge: 'bg-blue-500 text-white',          label: 'Задача' }
   return                        { border: 'border-stone-200',  bg: 'bg-white',      badge: 'bg-stone-500 text-white',         label: 'КП' }
 }
 
@@ -1056,7 +1062,7 @@ export default function AdminPage() {
                           .sort(([a], [b]) => +a - +b)
                           .map(([baseStr, kp]) => {
                             const base = +baseStr
-                            const meta = kpMeta(base)
+                            const meta = kpMeta(base, kp.zadanie?.kp_type ?? kp.zadacha?.kp_type)
                             const anyQ = kp.zadanie || kp.zadacha!
                             return (
                               <div key={base} className={`border-2 rounded-xl overflow-hidden ${meta.border}`}>

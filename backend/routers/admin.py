@@ -762,18 +762,24 @@ async def import_kp_excel(
         if answer == 'None':
             answer = None
 
-        # Задание КП (если есть текст задания)
+        # Задание КП (если есть текст задания или ответ)
         if task_text and task_text != 'None':
             db.add(EventQuestion(
-                event_id=event_id, number=num,
+                event_id=event_id, number=num, kp_type=kp_type,
                 text=task_text, correct_answer=answer, max_points=1
             ))
             created += 1
         elif answer and answer != 'None':
-            # Ответ есть, задания нет — создаём с дефолтным текстом
             db.add(EventQuestion(
-                event_id=event_id, number=num,
+                event_id=event_id, number=num, kp_type=kp_type,
                 text=f"КП-{num:02d}", correct_answer=answer, max_points=1
+            ))
+            created += 1
+        elif kp_type in ('Старт', 'Финиш'):
+            # Старт и Финиш без задания — всё равно создаём
+            db.add(EventQuestion(
+                event_id=event_id, number=num, kp_type=kp_type,
+                text=kp_type, correct_answer=None, max_points=0
             ))
             created += 1
 
@@ -784,7 +790,7 @@ async def import_kp_excel(
             if puzzle_answer == 'None':
                 puzzle_answer = None
             db.add(EventQuestion(
-                event_id=event_id, number=num + 100,
+                event_id=event_id, number=num + 100, kp_type='Задача',
                 text=f"Задача: {puzzle_text}",
                 correct_answer=puzzle_answer, max_points=1
             ))
