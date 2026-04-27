@@ -486,6 +486,7 @@ class QuestionUpdate(BaseModel):
 def _q_out(q) -> dict:
     return {
         "id": str(q.id), "event_id": str(q.event_id), "number": q.number,
+        "kp_type": q.kp_type,
         "text": q.text, "correct_answer": q.correct_answer,
         "max_points": q.max_points, "is_published": q.is_published,
         "image_filename": q.image_filename,
