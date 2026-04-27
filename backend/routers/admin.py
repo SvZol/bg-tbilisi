@@ -544,6 +544,17 @@ async def upload_question_image(
     db.commit()
     return {"image_filename": filename}
 
+@router.delete("/events/{event_id}/questions")
+def delete_all_questions(event_id: UUID, db: Session = Depends(get_db), admin=Depends(get_current_admin)):
+    from models.content import EventQuestion, TeamQuestionResult
+    q_ids = [q.id for q in db.query(EventQuestion).filter(EventQuestion.event_id == event_id).all()]
+    if q_ids:
+        db.query(TeamQuestionResult).filter(TeamQuestionResult.question_id.in_(q_ids)).delete(synchronize_session=False)
+    deleted = db.query(EventQuestion).filter(EventQuestion.event_id == event_id).delete()
+    db.commit()
+    return {"deleted": deleted}
+
+
 @router.delete("/questions/{question_id}")
 def delete_question(question_id: UUID, db: Session = Depends(get_db), admin=Depends(get_current_admin)):
     from models.content import EventQuestion, TeamQuestionResult

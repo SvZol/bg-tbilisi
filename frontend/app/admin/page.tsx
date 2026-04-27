@@ -957,13 +957,25 @@ export default function AdminPage() {
                   <div className="border border-stone-200 rounded-xl p-4 space-y-2">
                     <p className="text-sm font-semibold text-stone-800">📋 Шаг 1 — КП и ответы</p>
                     <p className="text-xs text-stone-500">Файл «все КП.xlsx» (лист «Все КП»)</p>
-                    <label className="block">
-                      <span className={`inline-block cursor-pointer ${btnSm} ${importingKp ? 'opacity-50 pointer-events-none' : ''}`}>
-                        {importingKp ? 'Загрузка...' : '📂 Выбрать файл'}
-                        <input type="file" accept=".xlsx" className="hidden" disabled={importingKp}
-                          onChange={e => { const f = e.target.files?.[0]; if (f) handleImportKp(f); e.target.value = '' }} />
-                      </span>
-                    </label>
+                    <div className="flex gap-2 flex-wrap">
+                      <label className="block">
+                        <span className={`inline-block cursor-pointer ${btnSm} ${importingKp ? 'opacity-50 pointer-events-none' : ''}`}>
+                          {importingKp ? 'Загрузка...' : '📂 Выбрать файл'}
+                          <input type="file" accept=".xlsx" className="hidden" disabled={importingKp}
+                            onChange={e => { const f = e.target.files?.[0]; if (f) handleImportKp(f); e.target.value = '' }} />
+                        </span>
+                      </label>
+                      {questions.length > 0 && (
+                        <button onClick={async () => {
+                          if (!confirm(`Удалить все ${questions.length} вопросов?`)) return
+                          await api.delete(`/admin/events/${selectedEventId}/questions`)
+                          setQuestions([])
+                          setImportKpMsg({ type: 'ok', text: 'Все вопросы удалены' })
+                        }} className="text-sm border border-red-200 text-red-500 hover:bg-red-50 px-3 py-1.5 rounded-lg">
+                          🗑 Удалить все ({questions.length})
+                        </button>
+                      )}
+                    </div>
                     {importKpMsg && (
                       <p className={`text-sm ${importKpMsg.type === 'ok' ? 'text-green-700' : 'text-red-600'}`}>
                         {importKpMsg.type === 'ok' ? '✓ ' : '✗ '}{importKpMsg.text}
