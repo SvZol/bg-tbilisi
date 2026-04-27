@@ -1096,7 +1096,8 @@ async def import_results_excel(
             c1 = str(r[1]).strip() if r[1] else ""
             if c0 and str(c0).strip().startswith('КП'):
                 try:
-                    cur_kp = int(str(c0).strip().split('-')[1])
+                    n = int(str(c0).strip().split('-')[1])
+                    cur_kp = 99 if n == 100 else n  # Финиш хранится под номером 99
                 except Exception:
                     cur_kp = None
             if cur_kp is None:
@@ -1152,7 +1153,8 @@ async def import_results_excel(
 
         if col0 and str(col0).strip().startswith('КП'):
             try:
-                current_kp = int(str(col0).strip().split('-')[1])
+                n = int(str(col0).strip().split('-')[1])
+                current_kp = 99 if n == 100 else n  # Финиш хранится под номером 99
             except Exception:
                 current_kp = None
 
