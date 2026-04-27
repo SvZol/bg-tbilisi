@@ -613,90 +613,110 @@ async def generate_results_template(
     if not questions:
         raise HTTPException(400, "Сначала импортируйте вопросы (КП)")
 
-    wb = openpyxl.Workbook()
-    ws = wb.active
-    ws.title = "результаты"
-
     from openpyxl.utils import get_column_letter
 
-    dark = PatternFill("solid", start_color="292524")
-    gray = PatternFill("solid", start_color="D6D3D1")
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "проверка"
+
+    dark   = PatternFill("solid", start_color="292524")
+    gray   = PatternFill("solid", start_color="E7E5E4")
     orange = PatternFill("solid", start_color="FED7AA")
     purple = PatternFill("solid", start_color="EDE9FE")
     orange_hdr = PatternFill("solid", start_color="EA580C")
     purple_hdr = PatternFill("solid", start_color="7C3AED")
+    yellow_hdr = PatternFill("solid", start_color="CA8A04")
 
-    # Строка 1 — служебная: первые 3 ячейки пустые, затем UUID команды на каждую пару колонок
-    # Строка 2 — видимая шапка: КП, Тип, Эталон, затем «Название / ответ», «Название / балл» для каждой команды
-    row1 = ['__id__', '', '']
-    row2 = ['КП', 'Тип', 'Правильный ответ']
-    for t in teams:
-        row1 += [str(t.id), '']   # UUID, пустая (для колонки балла)
-        row2 += [t.name + ' — ответ', t.name + ' — балл']
-    ws.append(row1)
-    ws.append(row2)
+    # Строка 1: пусто
+    ws.append([None])
+    # Строка 2: 'Проверка'
+    ws.append(['Проверка'])
+    ws.cell(2, 1).font = Font(bold=True, size=14)
 
-    # Форматирование строки 1 (служебная — серая, мелкий шрифт)
-    for cell in ws[1]:
-        cell.font = Font(size=8, color="78716C")
-        cell.fill = gray
-
-    # Форматирование строки 2 (шапка)
-    for col_idx, cell in enumerate(ws[2], 1):
+    # Строка 3: имена команд (col C = 'Эталон-команда', затем команды)
+    hdr_names = [None, None, 'Эталон-команда'] + [t.name for t in teams]
+    ws.append(hdr_names)
+    r3 = ws.max_row
+    for c in range(1, len(hdr_names) + 1):
+        cell = ws.cell(r3, c)
         cell.font = Font(bold=True, color="FFFFFF")
         cell.fill = dark
         cell.alignment = Alignment(horizontal="center", wrap_text=True)
 
+    # Строка 4: номера команд (col C = '00', затем 01, 02...)
+    hdr_nums = [None, None, '00'] + [f'{i+1:02d}' for i in range(len(teams))]
+    ws.append(hdr_nums)
+    r4 = ws.max_row
+    for c in range(1, len(hdr_nums) + 1):
+        cell = ws.cell(r4, c)
+        cell.font = Font(bold=True, color="FFFFFF")
+        cell.fill = dark
+        cell.alignment = Alignment(horizontal="center")
+
+    ws.row_dimensions[3].height = 30
+    ws.row_dimensions[4].height = 18
+
     # Ширина колонок
     ws.column_dimensions['A'].width = 10
     ws.column_dimensions['B'].width = 16
-    ws.column_dimensions['C'].width = 22
+    ws.column_dimensions['C'].width = 18
     for i in range(len(teams)):
-        ans_col = get_column_letter(4 + i * 2)
-        pts_col = get_column_letter(5 + i * 2)
-        ws.column_dimensions[ans_col].width = 20
-        ws.column_dimensions[pts_col].width = 8
+        ws.column_dimensions[get_column_letter(4 + i)].width = 14
+
+    ws.freeze_panes = 'D5'
 
     # Группируем вопросы по КП
     kp_map: dict = {}
     for q in questions:
+        base = q.number if q.number < 100 else q.number - 100
+        kp_map.setdefault(base, {})
         if q.number < 100:
-            kp_map.setdefault(q.number, {})['zadanie'] = q
+            kp_map[base]['zadanie'] = q
         else:
-            kp_map.setdefault(q.number - 100, {})['zadacha'] = q
+            kp_map[base]['zadacha'] = q
 
+    n_teams = len(teams)
     for kp_num in sorted(kp_map.keys()):
         kp = kp_map[kp_num]
         label = f"КП-{kp_num:02d}"
+        kp_type = kp.get('zadanie', kp.get('zadacha')).kp_type or ''
+
+        # Определяем цвет по типу
+        if kp_type in ('Старт', 'Финиш'):
+            hdr_fill, cell_fill = yellow_hdr, PatternFill("solid", start_color="FEF9C3")
+        elif kp_type == 'фотоКП':
+            hdr_fill, cell_fill = PatternFill("solid", start_color="15803D"), PatternFill("solid", start_color="DCFCE7")
+        elif kp_type == 'Задача':
+            hdr_fill, cell_fill = purple_hdr, purple
+        else:
+            hdr_fill, cell_fill = orange_hdr, orange
 
         if 'zadanie' in kp:
             q = kp['zadanie']
-            row = [label, 'задание КП', q.correct_answer or ''] + ['' for _ in range(len(teams) * 2)]
-            ws.append(row)
+            row_data = [label, 'задание КП', q.correct_answer or ''] + ['' for _ in range(n_teams)]
+            ws.append(row_data)
             r = ws.max_row
-            # Первые 3 ячейки — оранжевые
             for c in range(1, 4):
-                ws.cell(r, c).fill = orange_hdr
+                ws.cell(r, c).fill = hdr_fill
                 ws.cell(r, c).font = Font(bold=True, color="FFFFFF")
-            # Ячейки команд — светло-оранжевые
-            for c in range(4, 4 + len(teams) * 2):
-                ws.cell(r, c).fill = orange
+            for c in range(4, 4 + n_teams):
+                ws.cell(r, c).fill = cell_fill
+                ws.cell(r, c).alignment = Alignment(horizontal="center")
 
         if 'zadacha' in kp:
             q = kp['zadacha']
-            row = ['', 'задача', q.correct_answer or ''] + ['' for _ in range(len(teams) * 2)]
-            ws.append(row)
+            row_data = [None, 'задача', q.correct_answer or ''] + ['' for _ in range(n_teams)]
+            ws.append(row_data)
             r = ws.max_row
             for c in range(1, 4):
                 ws.cell(r, c).fill = purple_hdr
                 ws.cell(r, c).font = Font(bold=True, color="FFFFFF")
-            for c in range(4, 4 + len(teams) * 2):
+            for c in range(4, 4 + n_teams):
                 ws.cell(r, c).fill = purple
+                ws.cell(r, c).alignment = Alignment(horizontal="center")
 
-    # Высота строк шапки
-    ws.row_dimensions[1].height = 15
-    ws.row_dimensions[2].height = 35
-    ws.freeze_panes = 'D3'
+        # Пустая строка между КП
+        ws.append([None])
 
     buf = io.BytesIO()
     wb.save(buf)
