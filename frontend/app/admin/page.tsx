@@ -349,9 +349,7 @@ export default function AdminPage() {
         headers: { 'Content-Type': 'multipart/form-data' }
       })
       const d = res.data
-      let text = `Создано ${d.created} результатов.`
-      if (d.auto_created_teams) text += ` Автоматически создано команд: ${d.auto_created_teams}.`
-      text += ` Совпало команд: ${d.teams_found?.length || 0}.`
+      let text = `Создано ${d.created} результатов. Совпало команд: ${d.teams_found?.length || 0}.`
       if (d.unmatched_teams?.length) text += ` Не найдено: ${d.unmatched_teams.join(', ')}`
       setImportResMsg({ type: d.unmatched_teams?.length ? 'err' : 'ok', text })
       await loadQuestionsData(selectedEventId)
