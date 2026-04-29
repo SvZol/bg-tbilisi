@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, BackgroundTasks, Form
 from sqlalchemy.orm import Session
 from database import get_db
 from models.content import Post, Page, EventResult, EventPhoto
@@ -225,6 +225,61 @@ def delete_results_pdf(event_id: UUID, db: Session = Depends(get_db), admin=Depe
             os.remove(path)
         event.results_pdf = None
         db.commit()
+    return {"ok": True}
+
+
+# --- Несколько PDF-раздаток на мероприятие ---
+
+@router.get("/events/{event_id}/pdfs")
+def get_event_pdfs_admin(event_id: UUID, db: Session = Depends(get_db), admin=Depends(get_current_admin)):
+    from models.content import EventPdf
+    event = db.query(Event).filter(Event.id == event_id).first()
+    result = []
+    if event and event.results_pdf:
+        result.append({"id": "legacy", "filename": event.results_pdf, "display_name": "Раздатка (старый формат)"})
+    pdfs = db.query(EventPdf).filter(EventPdf.event_id == event_id).order_by(EventPdf.uploaded_at).all()
+    for p in pdfs:
+        result.append({"id": str(p.id), "filename": p.filename, "display_name": p.display_name or p.filename})
+    return result
+
+@router.post("/events/{event_id}/pdfs")
+async def upload_event_pdf_multi(
+    event_id: UUID,
+    file: UploadFile = File(...),
+    display_name: str = Form(None),
+    db: Session = Depends(get_db),
+    admin=Depends(get_current_admin),
+):
+    from models.content import EventPdf
+    import uuid as _uuid
+    event = db.query(Event).filter(Event.id == event_id).first()
+    if not event:
+        raise HTTPException(404, "Мероприятие не найдено")
+    if not (file.filename or "").lower().endswith(".pdf"):
+        raise HTTPException(400, "Разрешены только PDF-файлы")
+    os.makedirs("uploads/pdfs", exist_ok=True)
+    filename = f"{_uuid.uuid4()}.pdf"
+    path = f"uploads/pdfs/{filename}"
+    content = await file.read()
+    with open(path, "wb") as f:
+        f.write(content)
+    pdf = EventPdf(event_id=event_id, filename=filename, display_name=display_name or file.filename)
+    db.add(pdf)
+    db.commit()
+    db.refresh(pdf)
+    return {"id": str(pdf.id), "filename": pdf.filename, "display_name": pdf.display_name}
+
+@router.delete("/pdfs/{pdf_id}")
+def delete_event_pdf_multi(pdf_id: UUID, db: Session = Depends(get_db), admin=Depends(get_current_admin)):
+    from models.content import EventPdf
+    pdf = db.query(EventPdf).filter(EventPdf.id == pdf_id).first()
+    if not pdf:
+        raise HTTPException(404, "Файл не найден")
+    path = f"uploads/pdfs/{pdf.filename}"
+    if os.path.exists(path):
+        os.remove(path)
+    db.delete(pdf)
+    db.commit()
     return {"ok": True}
 
 

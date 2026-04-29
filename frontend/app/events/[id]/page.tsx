@@ -12,7 +12,8 @@ interface Event {
 }
 interface TeamMember { id: string; user_id: string | null; guest_name: string | null; full_name: string | null; role: string }
 interface Team { id: string; name: string; status: string; category: string; captain_name: string | null; member_count: number | null; description: string | null; members: TeamMember[] }
-interface Question { id: string; number: number; text: string; correct_answer: string | null; image_filename?: string | null }
+interface Question { id: string; number: number; kp_type: string | null; text: string; correct_answer: string | null; image_filename?: string | null }
+interface EventPdf { id: string; filename: string; display_name: string }
 interface QTeam { id: string; name: string; category: string }
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
@@ -22,14 +23,20 @@ function catLabel(cat: string) {
   return cat === 'adult' ? 'Лоси (взрослый зачёт)' : 'Лосята (детский зачёт)'
 }
 
-function kpMeta(num: number) {
+function kpMeta(num: number, kp_type?: string | null) {
+  const t = kp_type?.toLowerCase() ?? ''
+  if (t === 'старт')   return { border: 'border-yellow-400', bg: 'bg-yellow-50',  badge: 'bg-yellow-400 text-yellow-900', label: 'Старт' }
+  if (t === 'финиш')   return { border: 'border-yellow-400', bg: 'bg-yellow-50',  badge: 'bg-yellow-500 text-yellow-900', label: 'Финиш' }
+  if (t === 'фотокп')  return { border: 'border-green-500',  bg: 'bg-green-50',   badge: 'bg-green-600 text-white',       label: 'ФотоКП' }
+  if (t === 'задача')  return { border: 'border-blue-400',   bg: 'bg-blue-50',    badge: 'bg-blue-500 text-white',        label: 'Задача' }
+  if (t === 'загадка') return { border: 'border-violet-400', bg: 'bg-violet-50',  badge: 'bg-violet-600 text-white',      label: 'Загадка' }
+  // Fallback по номеру
   const b = num < 100 ? num : num - 100
-  if (b === 0)           return { border: 'border-yellow-400', bg: 'bg-yellow-50',  badge: 'bg-yellow-400 text-yellow-900',  label: 'Старт' }
-  if (b >= 1 && b <= 19) return { border: 'border-red-400',    bg: 'bg-red-50',     badge: 'bg-red-600 text-white',          label: 'КП' }
-  if (b >= 21 && b <= 29)return { border: 'border-blue-400',   bg: 'bg-blue-50',    badge: 'bg-blue-500 text-white',          label: 'КП↕' }
-  if (b >= 31 && b <= 39)return { border: 'border-green-500',  bg: 'bg-green-50',   badge: 'bg-green-600 text-white',         label: 'ФотоКП' }
-  if (b === 99)          return { border: 'border-yellow-400', bg: 'bg-yellow-50',  badge: 'bg-yellow-400 text-yellow-900',   label: 'Финиш' }
-  return                        { border: 'border-stone-300',  bg: 'bg-white',      badge: 'bg-stone-500 text-white',         label: 'КП' }
+  if (b === 0)           return { border: 'border-yellow-400', bg: 'bg-yellow-50',  badge: 'bg-yellow-400 text-yellow-900', label: 'Старт' }
+  if (b >= 31 && b <= 39)return { border: 'border-green-500',  bg: 'bg-green-50',   badge: 'bg-green-600 text-white',       label: 'ФотоКП' }
+  if (b === 99)          return { border: 'border-yellow-400', bg: 'bg-yellow-50',  badge: 'bg-yellow-500 text-yellow-900', label: 'Финиш' }
+  if (num >= 100)        return { border: 'border-blue-400',   bg: 'bg-blue-50',    badge: 'bg-blue-500 text-white',        label: 'Задача' }
+  return                        { border: 'border-stone-300',  bg: 'bg-white',      badge: 'bg-stone-500 text-white',       label: 'Адрес' }
 }
 
 const input = "w-full border border-stone-300 rounded-xl px-3 py-2 text-stone-900 focus:outline-none focus:ring-2 focus:ring-red-400 bg-white text-sm"
@@ -51,6 +58,8 @@ export default function EventDetailPage() {
   const [qTeams, setQTeams] = useState<QTeam[]>([])
   const [qResults, setQResults] = useState<Record<string, number>>({})
 
+  const [showAnswers, setShowAnswers] = useState(false)
+  const [eventPdfs, setEventPdfs] = useState<EventPdf[]>([])
   const [showForm, setShowForm] = useState(false)
   const [teamName, setTeamName] = useState('')
   const [teamCategory, setTeamCategory] = useState<'adult' | 'child'>('child')
@@ -70,6 +79,7 @@ export default function EventDetailPage() {
       setQTeams(res.data.teams || [])
       setQResults(res.data.results || {})
     }).catch(() => {})
+    api.get(`/events/${id}/pdfs`).then(res => setEventPdfs(res.data)).catch(() => {})
   }, [id])
 
   // Prefill captain name from user
@@ -191,6 +201,21 @@ export default function EventDetailPage() {
         </div>
       </div>
 
+      {/* PDF раздатки */}
+      {eventPdfs.length > 0 && (
+        <div className="flex flex-wrap gap-3">
+          {eventPdfs.map(pdf => (
+            <a key={pdf.id}
+              href={`${API_URL}/uploads/pdfs/${pdf.filename}`}
+              target="_blank" rel="noreferrer"
+              className="inline-flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-4 py-2 hover:bg-red-100 transition-colors text-sm font-medium text-red-800"
+            >
+              📄 {pdf.display_name}
+            </a>
+          ))}
+        </div>
+      )}
+
       {/* Итоговые результаты */}
       {event.status === 'finished' && (adultBoard.length > 0 || childBoard.length > 0) && (
         <section className="space-y-6">
@@ -212,7 +237,15 @@ export default function EventDetailPage() {
       {/* Правильные ответы */}
       {event.status === 'finished' && questions.length > 0 && (
         <section>
-          <h2 className="text-xl font-bold text-stone-900 mb-4">Правильные ответы</h2>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-bold text-stone-900">Правильные ответы</h2>
+            <button
+              onClick={() => setShowAnswers(v => !v)}
+              className="text-sm font-medium px-4 py-1.5 rounded-xl border border-stone-300 hover:border-red-400 text-stone-600 transition-colors"
+            >
+              {showAnswers ? '🙈 Скрыть ответы' : '👁 Показать ответы'}
+            </button>
+          </div>
           <div className="space-y-3">
             {(() => {
               const kpMap: Record<number, { zadanie?: Question; zadacha?: Question }> = {}
@@ -226,7 +259,7 @@ export default function EventDetailPage() {
                 .sort(([a], [b]) => +a - +b)
                 .map(([baseStr, kp]) => {
                   const base = +baseStr
-                  const meta = kpMeta(base)
+                  const meta = kpMeta(base, kp.zadanie?.kp_type ?? kp.zadacha?.kp_type)
                   return (
                     <div key={base} className={`border-2 rounded-2xl overflow-hidden ${meta.border}`}>
                       <div className={`px-4 py-2 flex items-center gap-2 ${meta.bg}`}>
@@ -246,7 +279,7 @@ export default function EventDetailPage() {
                                   className="mt-2 rounded-xl max-h-52 object-contain border border-stone-200" />
                               )}
                             </div>
-                            {kp.zadanie.correct_answer && (
+                            {kp.zadanie.correct_answer && showAnswers && (
                               <div className="shrink-0 text-right">
                                 <p className="text-[10px] text-stone-400 mb-0.5">Ответ</p>
                                 <p className="text-sm font-bold text-red-700">{kp.zadanie.correct_answer}</p>
@@ -266,7 +299,7 @@ export default function EventDetailPage() {
                                   className="mt-2 rounded-xl max-h-52 object-contain border border-stone-200" />
                               )}
                             </div>
-                            {kp.zadacha.correct_answer && (
+                            {kp.zadacha.correct_answer && showAnswers && (
                               <div className="shrink-0 text-right">
                                 <p className="text-[10px] text-stone-400 mb-0.5">Ответ</p>
                                 <p className="text-sm font-bold text-red-700">{kp.zadacha.correct_answer}</p>

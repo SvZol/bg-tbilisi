@@ -4,7 +4,7 @@ import Link from 'next/link'
 import api from '@/lib/api'
 
 interface Event {
-  id: string; title: string; description: string
+  id: string; title: string; description: string; city: string | null
   starts_at: string; ends_at: string; reg_deadline: string
   min_team_size: number; max_team_size: number; status: string
 }
@@ -35,8 +35,8 @@ export default function EventsPage() {
         href={`/events/${ev.id}`}
         className="group bg-white border border-stone-200 rounded-2xl p-6 hover:border-red-300 hover:shadow-md transition-all"
       >
-        <div className="text-2xl mb-3">🗺️</div>
-        <h2 className="font-bold text-stone-900 text-xl mb-2 group-hover:text-red-700 transition-colors">{ev.title}</h2>
+        <h2 className="font-bold text-stone-900 text-xl mb-1 group-hover:text-red-700 transition-colors">{ev.title}</h2>
+        {ev.city && <p className="text-sm text-stone-400 mb-3">📍 {ev.city}</p>}
         <p className="text-stone-500 text-sm mb-4 line-clamp-2">{ev.description}</p>
         <div className="text-sm text-stone-500 space-y-1">
           <p>📅 {new Date(ev.starts_at).toLocaleDateString('ru-RU')} — {new Date(ev.ends_at).toLocaleDateString('ru-RU')}</p>

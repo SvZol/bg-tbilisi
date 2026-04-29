@@ -73,3 +73,13 @@ class TeamQuestionResult(Base):
     team_answer = Column(Text, nullable=True)
 
     question = relationship("EventQuestion", back_populates="results")
+
+
+class EventPdf(Base):
+    __tablename__ = "event_pdfs"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    event_id = Column(UUID(as_uuid=True), ForeignKey("events.id"), nullable=False)
+    filename = Column(String, nullable=False)
+    display_name = Column(String, nullable=True)
+    uploaded_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))

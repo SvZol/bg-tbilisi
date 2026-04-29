@@ -52,3 +52,16 @@ def get_event(event_id: UUID, db: Session = Depends(get_db)):
     if not event:
         raise HTTPException(status_code=404, detail="Мероприятие не найдено")
     return event
+
+@router.get("/{event_id}/pdfs")
+def get_event_pdfs(event_id: UUID, db: Session = Depends(get_db)):
+    from models.content import EventPdf
+    event = db.query(Event).filter(Event.id == event_id).first()
+    result = []
+    # backward compat: legacy single PDF
+    if event and event.results_pdf:
+        result.append({"id": "legacy", "filename": event.results_pdf, "display_name": "Раздатка"})
+    pdfs = db.query(EventPdf).filter(EventPdf.event_id == event_id).order_by(EventPdf.uploaded_at).all()
+    for p in pdfs:
+        result.append({"id": str(p.id), "filename": p.filename, "display_name": p.display_name or p.filename})
+    return result

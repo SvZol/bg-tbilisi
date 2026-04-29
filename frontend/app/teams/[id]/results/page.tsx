@@ -12,7 +12,7 @@ interface KpResult {
 }
 
 interface TeamInfo { id: string; name: string; event_id: string }
-interface EventInfo { id: string; results_pdf: string | null }
+interface EventPdf { id: string; filename: string; display_name: string }
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
@@ -74,7 +74,7 @@ function AnswerRow({ label, item, isTask }: {
 export default function TeamResultsPage() {
   const { id } = useParams()
   const [team, setTeam] = useState<TeamInfo | null>(null)
-  const [event, setEvent] = useState<EventInfo | null>(null)
+  const [eventPdfs, setEventPdfs] = useState<EventPdf[]>([])
   const [results, setResults] = useState<KpResult[]>([])
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
@@ -85,8 +85,8 @@ export default function TeamResultsPage() {
       .then(([t, r]) => {
         setTeam(t.data)
         setResults(r.data)
-        // PDF грузим в фоне — не блокирует показ результатов
-        api.get(`/events/${t.data.event_id}`).then(ev => setEvent(ev.data)).catch(() => {})
+        // PDFs грузим в фоне
+        api.get(`/events/${t.data.event_id}/pdfs`).then(res => setEventPdfs(res.data)).catch(() => {})
       })
       .catch(() => setNotFound(true))
       .finally(() => setLoading(false))
@@ -115,19 +115,22 @@ export default function TeamResultsPage() {
         <h1 className="text-2xl font-extrabold text-stone-900 mt-2">{team.name}</h1>
       </div>
 
-      {event?.results_pdf && (
-        <a
-          href={`${API}/uploads/pdfs/${event.results_pdf}`}
-          target="_blank"
-          rel="noreferrer"
-          className="flex items-center gap-3 bg-red-50 border border-red-200 rounded-2xl px-5 py-3 hover:bg-red-100 transition-colors"
-        >
-          <span className="text-2xl">📄</span>
-          <div>
-            <p className="font-bold text-red-800 text-sm">Раздатки мероприятия</p>
-            <p className="text-xs text-red-600">Скачать PDF</p>
-          </div>
-        </a>
+      {eventPdfs.length > 0 && (
+        <div className="flex flex-col gap-2">
+          {eventPdfs.map(pdf => (
+            <a key={pdf.id}
+              href={`${API}/uploads/pdfs/${pdf.filename}`}
+              target="_blank" rel="noreferrer"
+              className="flex items-center gap-3 bg-red-50 border border-red-200 rounded-2xl px-5 py-3 hover:bg-red-100 transition-colors"
+            >
+              <span className="text-2xl">📄</span>
+              <div>
+                <p className="font-bold text-red-800 text-sm">{pdf.display_name}</p>
+                <p className="text-xs text-red-600">Скачать PDF</p>
+              </div>
+            </a>
+          ))}
+        </div>
       )}
 
       {results.length === 0 ? (

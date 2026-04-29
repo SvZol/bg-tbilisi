@@ -71,7 +71,7 @@ export default function AdminPage() {
   const [eventTeams, setEventTeams] = useState<Team[]>([])
   const [scoreboard, setScoreboard] = useState<{ adult: any[]; child: any[] } | null>(null)
   const [uploadingPdf, setUploadingPdf] = useState(false)
-  const [pdfFilename, setPdfFilename] = useState<string | null>(null)
+  const [eventPdfs, setEventPdfs] = useState<{id: string; filename: string; display_name: string}[]>([])
   const [generatedInvite, setGeneratedInvite] = useState<{ teamId: string; url: string } | null>(null)
 
   // Вопросы
@@ -188,12 +188,12 @@ export default function AdminPage() {
 
   async function loadScoreboard(eventId: string) {
     try {
-      const [sbRes, evRes] = await Promise.all([
+      const [sbRes, pdfsRes] = await Promise.all([
         api.get(`/admin/events/${eventId}/scoreboard`),
-        api.get(`/events/${eventId}`),
+        api.get(`/admin/events/${eventId}/pdfs`),
       ])
       setScoreboard(sbRes.data)
-      setPdfFilename(evRes.data.results_pdf || null)
+      setEventPdfs(pdfsRes.data)
     } catch { setScoreboard(null) }
   }
 
@@ -879,42 +879,54 @@ export default function AdminPage() {
                 </button>
               </div>
 
-              {/* PDF раздатки */}
-              <div className={`${card} flex items-center gap-4 flex-wrap`}>
-                <div className="flex-1">
+              {/* PDF раздатки (несколько файлов) */}
+              <div className={card}>
+                <div className="flex items-center justify-between mb-3">
                   <p className="text-sm font-bold text-stone-900">Раздатки (PDF)</p>
-                  {pdfFilename
-                    ? <a href={`${API_URL}/uploads/pdfs/${pdfFilename}`} target="_blank" rel="noreferrer"
-                        className="text-sm text-red-700 hover:underline">{pdfFilename}</a>
-                    : <p className="text-sm text-stone-400">Файл не загружен</p>
-                  }
-                </div>
-                <div className="flex gap-2">
                   <label className={`${btnSm} cursor-pointer ${uploadingPdf ? 'opacity-50' : ''}`}>
-                    {uploadingPdf ? 'Загрузка...' : pdfFilename ? 'Заменить PDF' : 'Загрузить PDF'}
+                    {uploadingPdf ? 'Загрузка...' : '+ Добавить PDF'}
                     <input type="file" accept=".pdf" className="hidden" disabled={uploadingPdf}
                       onChange={async e => {
                         const f = e.target.files?.[0]; if (!f) return
                         setUploadingPdf(true)
-                        const fd = new FormData(); fd.append('file', f)
+                        const fd = new FormData()
+                        fd.append('file', f)
+                        fd.append('display_name', f.name)
                         try {
-                          const res = await api.post(`/admin/events/${selectedEventId}/upload-results-pdf`, fd)
-                          setPdfFilename(res.data.filename)
+                          const res = await api.post(`/admin/events/${selectedEventId}/pdfs`, fd, { headers: { 'Content-Type': 'multipart/form-data' } })
+                          setEventPdfs(prev => [...prev, res.data])
                         } catch (err: any) {
                           alert(err?.response?.data?.detail || 'Ошибка загрузки')
                         } finally { setUploadingPdf(false); e.target.value = '' }
                       }} />
                   </label>
-                  {pdfFilename && (
-                    <button onClick={async () => {
-                      if (!confirm('Удалить PDF?')) return
-                      await api.delete(`/admin/events/${selectedEventId}/results-pdf`)
-                      setPdfFilename(null)
-                    }} className="text-sm text-red-500 hover:text-red-700 border border-red-200 px-3 py-1 rounded-lg hover:bg-red-50">
-                      Удалить
-                    </button>
-                  )}
                 </div>
+                {eventPdfs.length === 0
+                  ? <p className="text-sm text-stone-400">Файлы не загружены</p>
+                  : (
+                    <div className="space-y-2">
+                      {eventPdfs.map(pdf => (
+                        <div key={pdf.id} className="flex items-center justify-between gap-3 py-2 border-t border-stone-100 first:border-t-0">
+                          <a href={`${API_URL}/uploads/pdfs/${pdf.filename}`} target="_blank" rel="noreferrer"
+                            className="text-sm text-red-700 hover:underline truncate flex-1">
+                            📄 {pdf.display_name}
+                          </a>
+                          <button onClick={async () => {
+                            if (!confirm('Удалить файл?')) return
+                            if (pdf.id === 'legacy') {
+                              await api.delete(`/admin/events/${selectedEventId}/results-pdf`)
+                            } else {
+                              await api.delete(`/admin/pdfs/${pdf.id}`)
+                            }
+                            setEventPdfs(prev => prev.filter(p => p.id !== pdf.id))
+                          }} className="text-xs text-red-400 hover:text-red-600 shrink-0 border border-red-100 px-2 py-1 rounded-lg hover:bg-red-50">
+                            Удалить
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )
+                }
               </div>
 
               {!scoreboard ? (
@@ -1252,18 +1264,18 @@ export default function AdminPage() {
                       <h3 className="font-bold text-stone-900 mb-3">Очки команд по вопросам</h3>
                       <div className="overflow-x-auto">
                         <table className="text-sm w-full">
-                          <thead className="bg-stone-50">
-                            <tr>
-                              <th className="text-left px-3 py-2 font-medium text-stone-700 whitespace-nowrap">Вопрос</th>
+                          <thead>
+                            <tr className="bg-stone-50 sticky top-0 z-10">
+                              <th className="text-left px-3 py-2 font-medium text-stone-700 whitespace-nowrap sticky left-0 bg-stone-50 z-20 border-r border-stone-200">Вопрос</th>
                               {qTeams.map(t => (
-                                <th key={t.id} className="px-3 py-2 font-medium text-stone-700 whitespace-nowrap">{t.name}</th>
+                                <th key={t.id} className="px-3 py-2 font-medium text-stone-700 whitespace-nowrap text-center">{t.name}</th>
                               ))}
                             </tr>
                           </thead>
                           <tbody>
                             {questions.map(q => (
                               <tr key={q.id} className="border-t border-stone-100">
-                                <td className="px-3 py-2 text-stone-800 whitespace-nowrap">
+                                <td className="px-3 py-2 text-stone-800 whitespace-nowrap sticky left-0 bg-white z-10 border-r border-stone-100">
                                   #{q.number} <span className="text-stone-500 text-xs">({q.max_points} очк.)</span>
                                 </td>
                                 {qTeams.map(t => {
@@ -1286,7 +1298,7 @@ export default function AdminPage() {
                             ))}
                             {/* Итого */}
                             <tr className="border-t-2 border-stone-300 bg-stone-50 font-bold">
-                              <td className="px-3 py-2 text-stone-900">Итого</td>
+                              <td className="px-3 py-2 text-stone-900 sticky left-0 bg-stone-50 z-10 border-r border-stone-200">Итого</td>
                               {qTeams.map(t => {
                                 const total = questions.reduce((sum, q) => sum + (qResults[`${q.id}|${t.id}`] ?? 0), 0)
                                 const max = questions.reduce((sum, q) => sum + q.max_points, 0)
