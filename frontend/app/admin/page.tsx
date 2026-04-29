@@ -1258,55 +1258,55 @@ export default function AdminPage() {
                     </div>
                   </div>
 
-                  {/* Таблица очков команд */}
+                  {/* Таблица очков команд — строки = команды, столбцы = вопросы */}
                   {qTeams.length > 0 && (
                     <div className={card}>
                       <h3 className="font-bold text-stone-900 mb-3">Очки команд по вопросам</h3>
                       <div className="overflow-x-auto">
-                        <table className="text-sm w-full">
+                        <table className="text-sm border-separate border-spacing-0">
                           <thead>
-                            <tr className="bg-stone-50 sticky top-0 z-10">
-                              <th className="text-left px-3 py-2 font-medium text-stone-700 whitespace-nowrap sticky left-0 bg-stone-50 z-20 border-r border-stone-200">Вопрос</th>
-                              {qTeams.map(t => (
-                                <th key={t.id} className="px-3 py-2 font-medium text-stone-700 whitespace-nowrap text-center">{t.name}</th>
+                            <tr className="bg-stone-50">
+                              <th className="text-left px-3 py-2 font-medium text-stone-700 whitespace-nowrap sticky left-0 bg-stone-50 z-20 border-b border-r border-stone-200 min-w-[140px]">Команда</th>
+                              {questions.map(q => (
+                                <th key={q.id} className="px-2 py-2 font-medium text-stone-500 whitespace-nowrap text-center border-b border-stone-200 min-w-[52px]">
+                                  <span className="text-xs">#{q.number}</span>
+                                </th>
                               ))}
+                              <th className="px-3 py-2 font-bold text-stone-700 whitespace-nowrap text-center sticky right-0 bg-stone-50 z-20 border-b border-l border-stone-200">Итого</th>
                             </tr>
                           </thead>
                           <tbody>
-                            {questions.map(q => (
-                              <tr key={q.id} className="border-t border-stone-100">
-                                <td className="px-3 py-2 text-stone-800 whitespace-nowrap sticky left-0 bg-white z-10 border-r border-stone-100">
-                                  #{q.number} <span className="text-stone-500 text-xs">({q.max_points} очк.)</span>
-                                </td>
-                                {qTeams.map(t => {
-                                  const key = `${q.id}|${t.id}`
-                                  const val = qResults[key] ?? 0
-                                  return (
-                                    <td key={t.id} className="px-2 py-1.5 text-center">
-                                      <input
-                                        type="number"
-                                        min={0}
-                                        max={q.max_points}
-                                        value={val}
-                                        onChange={e => handleSetPoints(q.id, t.id, +e.target.value)}
-                                        className="w-16 border border-stone-300 rounded-lg px-2 py-1 text-center text-stone-900 text-sm focus:outline-none focus:ring-2 focus:ring-red-400 bg-white"
-                                      />
-                                    </td>
-                                  )
-                                })}
-                              </tr>
-                            ))}
-                            {/* Итого */}
-                            <tr className="border-t-2 border-stone-300 bg-stone-50 font-bold">
-                              <td className="px-3 py-2 text-stone-900 sticky left-0 bg-stone-50 z-10 border-r border-stone-200">Итого</td>
-                              {qTeams.map(t => {
-                                const total = questions.reduce((sum, q) => sum + (qResults[`${q.id}|${t.id}`] ?? 0), 0)
-                                const max = questions.reduce((sum, q) => sum + q.max_points, 0)
-                                return (
-                                  <td key={t.id} className="px-3 py-2 text-center text-stone-900">{total}<span className="text-stone-400 font-normal">/{max}</span></td>
-                                )
-                              })}
-                            </tr>
+                            {qTeams.map((t, ti) => {
+                              const total = questions.reduce((sum, q) => sum + (qResults[`${q.id}|${t.id}`] ?? 0), 0)
+                              const max   = questions.reduce((sum, q) => sum + q.max_points, 0)
+                              const rowBg = ti % 2 === 0 ? 'bg-white' : 'bg-stone-50/60'
+                              return (
+                                <tr key={t.id}>
+                                  <td className={`px-3 py-2 font-semibold text-stone-800 whitespace-nowrap sticky left-0 z-10 border-r border-stone-200 ${rowBg}`}>
+                                    {t.name}
+                                  </td>
+                                  {questions.map(q => {
+                                    const key = `${q.id}|${t.id}`
+                                    const val = qResults[key] ?? 0
+                                    return (
+                                      <td key={q.id} className="px-1 py-1.5 text-center">
+                                        <input
+                                          type="number"
+                                          min={0}
+                                          max={q.max_points}
+                                          value={val}
+                                          onChange={e => handleSetPoints(q.id, t.id, +e.target.value)}
+                                          className="w-12 border border-stone-300 rounded-lg px-1 py-1 text-center text-stone-900 text-sm focus:outline-none focus:ring-2 focus:ring-red-400 bg-white"
+                                        />
+                                      </td>
+                                    )
+                                  })}
+                                  <td className={`px-3 py-2 text-center font-bold text-red-700 sticky right-0 z-10 border-l border-stone-200 ${rowBg}`}>
+                                    {total}<span className="text-stone-400 font-normal text-xs">/{max}</span>
+                                  </td>
+                                </tr>
+                              )
+                            })}
                           </tbody>
                         </table>
                       </div>
