@@ -49,7 +49,9 @@ export default function AdminPage() {
 
   const [eventForm, setEventForm] = useState({ title: '', description: '', city: '', starts_at: '', ends_at: '', reg_deadline: '', min_team_size: 2, max_team_size: 5 })
   const [editingEventId, setEditingEventId] = useState<string | null>(null)
-  const [editEventForm, setEditEventForm] = useState({ min_team_size: 2, max_team_size: 5, city: '', map_url: '' })
+  const [editEventForm, setEditEventForm] = useState({ min_team_size: 2, max_team_size: 5, city: '' })
+  const [mapUrl, setMapUrl] = useState('')
+  const [mapUrlMsg, setMapUrlMsg] = useState('')
   const [postForm, setPostForm] = useState({ title: '', content: '', is_published: false })
   const [eventError, setEventError] = useState('')
   const [postError, setPostError] = useState('')
@@ -511,7 +513,7 @@ export default function AdminPage() {
                       </button>
                       <button onClick={() => {
                         setEditingEventId(ev.id)
-                        setEditEventForm({ min_team_size: ev.min_team_size, max_team_size: ev.max_team_size, city: ev.city || '', map_url: ev.map_url || '' })
+                        setEditEventForm({ min_team_size: ev.min_team_size, max_team_size: ev.max_team_size, city: ev.city || '' })
                       }}
                         className="text-sm border border-stone-300 px-3 py-1.5 rounded-xl hover:border-red-400 text-stone-700 transition-colors">
                         Изменить
@@ -538,15 +540,6 @@ export default function AdminPage() {
                         <input type="number" value={editEventForm.max_team_size}
                           onChange={e => setEditEventForm({ ...editEventForm, max_team_size: +e.target.value })}
                           className={input} />
-                      </div>
-                      <div className="md:col-span-3">
-                        <label className="block text-xs font-medium text-stone-600 mb-1">
-                          Ссылка на карту Google Maps
-                          <span className="ml-1 font-normal text-stone-400">(вставьте любую ссылку на карту — edit, viewer или share)</span>
-                        </label>
-                        <input value={editEventForm.map_url}
-                          onChange={e => setEditEventForm({ ...editEventForm, map_url: e.target.value })}
-                          className={input} placeholder="https://www.google.com/maps/d/edit?mid=..." />
                       </div>
                       <div className="md:col-span-3 flex gap-2">
                         <button onClick={async () => {
@@ -869,7 +862,11 @@ export default function AdminPage() {
       {tab === 'results' && (
         <div className="space-y-5">
           <h2 className="font-bold text-stone-900">Выберите мероприятие</h2>
-          {eventSelector((id) => { loadEventData(id); loadScoreboard(id) })}
+          {eventSelector((id) => {
+            loadEventData(id); loadScoreboard(id)
+            const ev = events.find(e => e.id === id)
+            setMapUrl(ev?.map_url || ''); setMapUrlMsg('')
+          })}
           {selectedEventId && (
             <>
               {/* Очистка результатов */}
@@ -936,6 +933,37 @@ export default function AdminPage() {
                     </div>
                   )
                 }
+              </div>
+
+              {/* Карта маршрута */}
+              <div className={card}>
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-sm font-bold text-stone-900">Карта маршрута</p>
+                  {mapUrlMsg && <span className="text-xs text-green-700 font-medium">{mapUrlMsg}</span>}
+                </div>
+                <div className="flex gap-2">
+                  <input
+                    value={mapUrl}
+                    onChange={e => { setMapUrl(e.target.value); setMapUrlMsg('') }}
+                    className={`${input} flex-1 text-sm`}
+                    placeholder="https://www.google.com/maps/d/edit?mid=..."
+                  />
+                  <button onClick={async () => {
+                    await api.patch(`/admin/events/${selectedEventId}`, { map_url: mapUrl })
+                    setEvents(events.map(e => e.id === selectedEventId ? { ...e, map_url: mapUrl || null } : e))
+                    setMapUrlMsg('✓ Сохранено')
+                  }} className={btnSm}>Сохранить</button>
+                  {mapUrl && (
+                    <button onClick={async () => {
+                      await api.patch(`/admin/events/${selectedEventId}`, { map_url: '' })
+                      setMapUrl(''); setMapUrlMsg('')
+                      setEvents(events.map(e => e.id === selectedEventId ? { ...e, map_url: null } : e))
+                    }} className="text-sm text-red-400 hover:text-red-600 border border-red-100 px-3 py-1.5 rounded-xl hover:bg-red-50">
+                      Удалить
+                    </button>
+                  )}
+                </div>
+                <p className="text-xs text-stone-400 mt-2">Вставьте любую ссылку на карту Google Maps (edit, viewer или share) — система сама построит iframe.</p>
               </div>
 
               {!scoreboard ? (
