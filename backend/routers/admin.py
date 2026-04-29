@@ -49,6 +49,7 @@ class EventEdit(BaseModel):
     city: str | None = None
     min_team_size: int | None = None
     max_team_size: int | None = None
+    map_url: str | None = None
 
 @router.get("/events", response_model=list[EventOut])
 def list_all_events(db: Session = Depends(get_db), admin=Depends(get_current_admin)):
@@ -72,6 +73,7 @@ def edit_event(event_id: UUID, data: EventEdit, db: Session = Depends(get_db), a
     if data.city is not None: event.city = data.city
     if data.min_team_size is not None: event.min_team_size = data.min_team_size
     if data.max_team_size is not None: event.max_team_size = data.max_team_size
+    if data.map_url is not None: event.map_url = data.map_url if data.map_url.strip() else None
     db.commit()
     db.refresh(event)
     return event

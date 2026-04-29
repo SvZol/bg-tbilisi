@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation'
 import api from '@/lib/api'
 import { useAuth } from '@/context/AuthContext'
 
-interface Event { id: string; title: string; status: string; starts_at: string; ends_at: string; reg_deadline: string; city?: string; min_team_size: number; max_team_size: number }
+interface Event { id: string; title: string; status: string; starts_at: string; ends_at: string; reg_deadline: string; city?: string; min_team_size: number; max_team_size: number; map_url?: string | null }
 interface Post { id: string; title: string; content: string; is_published: boolean; image_filename: string | null; created_at: string }
 interface TeamMember { id: string; user_id: string | null; guest_name: string | null; guest_email: string | null; display_name: string | null; display_email: string | null; role: string; is_registered: boolean; last_login_at: string | null; is_imported: boolean }
 interface Team { id: string; name: string; status: string; category: string; members: TeamMember[] }
@@ -49,7 +49,7 @@ export default function AdminPage() {
 
   const [eventForm, setEventForm] = useState({ title: '', description: '', city: '', starts_at: '', ends_at: '', reg_deadline: '', min_team_size: 2, max_team_size: 5 })
   const [editingEventId, setEditingEventId] = useState<string | null>(null)
-  const [editEventForm, setEditEventForm] = useState({ min_team_size: 2, max_team_size: 5, city: '' })
+  const [editEventForm, setEditEventForm] = useState({ min_team_size: 2, max_team_size: 5, city: '', map_url: '' })
   const [postForm, setPostForm] = useState({ title: '', content: '', is_published: false })
   const [eventError, setEventError] = useState('')
   const [postError, setPostError] = useState('')
@@ -511,7 +511,7 @@ export default function AdminPage() {
                       </button>
                       <button onClick={() => {
                         setEditingEventId(ev.id)
-                        setEditEventForm({ min_team_size: ev.min_team_size, max_team_size: ev.max_team_size, city: (ev as any).city || '' })
+                        setEditEventForm({ min_team_size: ev.min_team_size, max_team_size: ev.max_team_size, city: ev.city || '', map_url: ev.map_url || '' })
                       }}
                         className="text-sm border border-stone-300 px-3 py-1.5 rounded-xl hover:border-red-400 text-stone-700 transition-colors">
                         Изменить
@@ -538,6 +538,15 @@ export default function AdminPage() {
                         <input type="number" value={editEventForm.max_team_size}
                           onChange={e => setEditEventForm({ ...editEventForm, max_team_size: +e.target.value })}
                           className={input} />
+                      </div>
+                      <div className="md:col-span-3">
+                        <label className="block text-xs font-medium text-stone-600 mb-1">
+                          Ссылка на карту Google Maps
+                          <span className="ml-1 font-normal text-stone-400">(вставьте любую ссылку на карту — edit, viewer или share)</span>
+                        </label>
+                        <input value={editEventForm.map_url}
+                          onChange={e => setEditEventForm({ ...editEventForm, map_url: e.target.value })}
+                          className={input} placeholder="https://www.google.com/maps/d/edit?mid=..." />
                       </div>
                       <div className="md:col-span-3 flex gap-2">
                         <button onClick={async () => {

@@ -30,6 +30,7 @@ class EventOut(BaseModel):
     max_team_size: int
     status: str
     results_pdf: str | None = None
+    map_url: str | None = None
 
     class Config:
         from_attributes = True

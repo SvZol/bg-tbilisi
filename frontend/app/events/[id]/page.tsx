@@ -9,6 +9,17 @@ interface Event {
   id: string; title: string; description: string; city: string | null
   starts_at: string; ends_at: string; reg_deadline: string
   min_team_size: number; max_team_size: number; status: string
+  map_url: string | null
+}
+
+function getMapIds(mapUrl: string | null): { embedUrl: string; viewUrl: string } | null {
+  if (!mapUrl) return null
+  const m = mapUrl.match(/[?&]mid=([^&]+)/)
+  if (!m) return null
+  return {
+    embedUrl: `https://www.google.com/maps/d/embed?mid=${m[1]}`,
+    viewUrl:  `https://www.google.com/maps/d/viewer?mid=${m[1]}`,
+  }
 }
 interface TeamMember { id: string; user_id: string | null; guest_name: string | null; full_name: string | null; role: string }
 interface Team { id: string; name: string; status: string; category: string; captain_name: string | null; member_count: number | null; description: string | null; members: TeamMember[] }
@@ -200,6 +211,31 @@ export default function EventDetailPage() {
           <span>👥 {event.min_team_size}–{event.max_team_size} человек</span>
         </div>
       </div>
+
+      {/* Карта маршрута */}
+      {(() => {
+        const map = getMapIds(event.map_url)
+        if (!map) return null
+        return (
+          <div className="rounded-2xl overflow-hidden border border-stone-200 shadow-sm">
+            <iframe
+              src={map.embedUrl}
+              className="w-full h-64 md:h-80 block"
+              frameBorder="0"
+              allowFullScreen
+              loading="lazy"
+              title="Карта маршрута"
+            />
+            <div className="bg-white px-4 py-2 flex items-center justify-between">
+              <p className="text-xs text-stone-400">Карта маршрута</p>
+              <a href={map.viewUrl} target="_blank" rel="noreferrer"
+                className="text-xs text-red-700 hover:text-red-800 font-medium">
+                Открыть на весь экран ↗
+              </a>
+            </div>
+          </div>
+        )
+      })()}
 
       {/* PDF раздатки */}
       {eventPdfs.length > 0 && (
