@@ -1,5 +1,8 @@
+import logging
 import smtplib
+import ssl
 import os
+from html import escape
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
@@ -11,15 +14,17 @@ FROM_EMAIL = os.getenv("FROM_EMAIL", SMTP_USER)
 FROM_NAME = os.getenv("FROM_NAME", "ТБИссектриса")
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
 
+log = logging.getLogger(__name__)
+
 
 def send_email(to: str, subject: str, html: str):
-    print(f"[EMAIL] host={SMTP_HOST} port={SMTP_PORT} user={SMTP_USER} to={to}")
-
     if not SMTP_USER or not SMTP_PASS:
-        print(f"[EMAIL MOCK] SMTP не настроен")
-        print(f"[EMAIL MOCK] To: {to} | Subject: {subject}")
+        log.warning("SMTP не настроен, письмо не отправлено: to=%s subject=%s", to, subject)
         return
 
+    if any(c in to for c in "\r\n"):
+        raise ValueError("Некорректный адрес получателя")
+    subject = " ".join(subject.split())
     msg = MIMEMultipart("alternative")
     msg["Subject"] = subject
     msg["From"] = f"{FROM_NAME} <{FROM_EMAIL}>"
@@ -28,7 +33,6 @@ def send_email(to: str, subject: str, html: str):
 
     try:
         if SMTP_PORT == 465:
-            import ssl
             ctx = ssl.create_default_context()
             with smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT, context=ctx) as smtp:
                 smtp.login(SMTP_USER, SMTP_PASS)
@@ -36,12 +40,12 @@ def send_email(to: str, subject: str, html: str):
         else:
             with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=15) as smtp:
                 smtp.ehlo()
-                smtp.starttls()
+                smtp.starttls(context=ssl.create_default_context())
                 smtp.login(SMTP_USER, SMTP_PASS)
                 smtp.sendmail(FROM_EMAIL, to, msg.as_string())
-        print(f"[EMAIL] Успешно отправлено на {to}")
+        log.info("Письмо отправлено: %s", to)
     except Exception as e:
-        print(f"[EMAIL ERROR] {type(e).__name__}: {e}")
+        log.error("Ошибка отправки письма: %s: %s", type(e).__name__, e)
         raise
 
 
@@ -65,7 +69,6 @@ def send_verification_email(to: str, token: str):
 
 
 def send_new_event_email(to: str, title: str, starts_at, reg_deadline, event_id: str):
-    from datetime import datetime
     starts = starts_at.strftime('%d.%m.%Y') if hasattr(starts_at, 'strftime') else str(starts_at)[:10]
     deadline = reg_deadline.strftime('%d.%m.%Y') if hasattr(reg_deadline, 'strftime') else str(reg_deadline)[:10]
     link = f"{FRONTEND_URL}/events/{event_id}"
@@ -73,7 +76,7 @@ def send_new_event_email(to: str, title: str, starts_at, reg_deadline, event_id:
     <div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;padding:24px;">
       <img src="{FRONTEND_URL}/logo-text.PNG" alt="ТБИссектриса" style="height:40px;margin-bottom:20px;" />
       <h2 style="color:#dc2626;">Скоро игра!</h2>
-      <p style="color:#44403c;">Привет! У нас новое мероприятие — <strong>«{title}»</strong> 🎉</p>
+      <p style="color:#44403c;">Привет! У нас новое мероприятие — <strong>«{escape(title)}»</strong> 🎉</p>
       <p style="color:#44403c;">📅 <strong>Когда:</strong> {starts}<br>
       ⏰ <strong>Успей зарегистрировать команду до:</strong> {deadline}</p>
       <a href="{link}"
@@ -84,7 +87,7 @@ def send_new_event_email(to: str, title: str, starts_at, reg_deadline, event_id:
       <p style="color:#a8a29e;font-size:13px;">До встречи на улицах Тбилиси!<br>Команда ТБИссектрисы</p>
     </div>
     """
-    send_email(to, f"Скоро игра! — ТБИссектриса", html)
+    send_email(to, "Скоро игра! — ТБИссектриса", html)
 
 
 def send_reschedule_email(to: str, title: str, team_name: str, starts_at, reg_deadline):
@@ -93,11 +96,11 @@ def send_reschedule_email(to: str, title: str, team_name: str, starts_at, reg_de
     html = f"""
     <div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;padding:24px;">
       <img src="{FRONTEND_URL}/logo-text.PNG" alt="ТБИссектриса" style="height:40px;margin-bottom:20px;" />
-      <h2 style="color:#dc2626;">Важно: «{title}» переносится</h2>
-      <p style="color:#44403c;">Привет! Сообщаем, что мероприятие <strong>«{title}»</strong> переносится.</p>
+      <h2 style="color:#dc2626;">Важно: «{escape(title)}» переносится</h2>
+      <p style="color:#44403c;">Привет! Сообщаем, что мероприятие <strong>«{escape(title)}»</strong> переносится.</p>
       <p style="color:#44403c;">📅 <strong>Новая дата:</strong> {starts}<br>
       ⏰ <strong>Регистрация продлена до:</strong> {deadline}</p>
-      <p style="color:#44403c;">Ваша команда <strong>«{team_name}»</strong> остаётся в игре — ничего делать не нужно.</p>
+      <p style="color:#44403c;">Ваша команда <strong>«{escape(team_name)}»</strong> остаётся в игре — ничего делать не нужно.</p>
       <p style="color:#a8a29e;font-size:13px;">До встречи!<br>Команда ТБИссектрисы</p>
     </div>
     """
@@ -111,9 +114,9 @@ def send_results_email(to: str, title: str, team_name: str, rank: int | None, sc
     html = f"""
     <div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;padding:24px;">
       <img src="{FRONTEND_URL}/logo-text.PNG" alt="ТБИссектриса" style="height:40px;margin-bottom:20px;" />
-      <h2 style="color:#dc2626;">Результаты «{title}» опубликованы!</h2>
-      <p style="color:#44403c;">Привет! Результаты мероприятия <strong>«{title}»</strong> уже на сайте.</p>
-      <p style="color:#44403c;">🏆 Ваша команда <strong>«{team_name}»</strong>: {rank_str}, баллы: {score_str}</p>
+      <h2 style="color:#dc2626;">Результаты «{escape(title)}» опубликованы!</h2>
+      <p style="color:#44403c;">Привет! Результаты мероприятия <strong>«{escape(title)}»</strong> уже на сайте.</p>
+      <p style="color:#44403c;">🏆 Ваша команда <strong>«{escape(team_name)}»</strong>: {escape(rank_str)}, баллы: {escape(score_str)}</p>
       <a href="{link}"
          style="display:inline-block;background:#dc2626;color:#fff;padding:12px 28px;
                 border-radius:10px;text-decoration:none;font-weight:bold;margin:16px 0;">
@@ -129,13 +132,13 @@ def send_invite_email(to: str, team_name: str, event_title: str, temp_password: 
     link = f"{FRONTEND_URL}/login"
     html = f"""
     <div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;padding:24px;">
-      <img src="{FRONTEND_URL}/logo-text.png" alt="ТБИссектриса" style="height:40px;margin-bottom:20px;" />
+      <img src="{FRONTEND_URL}/logo-text.PNG" alt="ТБИссектриса" style="height:40px;margin-bottom:20px;" />
       <h2 style="color:#dc2626;">Привет от ТБИссектрисы!</h2>
-      <p style="color:#44403c;">Ваша команда <strong>«{team_name}»</strong> зарегистрирована на <strong>«{event_title}»</strong> 🎉</p>
+      <p style="color:#44403c;">Ваша команда <strong>«{escape(team_name)}»</strong> зарегистрирована на <strong>«{escape(event_title)}»</strong> 🎉</p>
       <p style="color:#44403c;">Мы создали для вас аккаунт на сайте — зайдите и заполните данные команды:</p>
       <table style="background:#f5f5f4;border-radius:10px;padding:16px;margin:16px 0;width:100%;">
-        <tr><td style="color:#78716c;font-size:13px;">Email:</td><td style="font-weight:bold;color:#1c1917;">{to}</td></tr>
-        <tr><td style="color:#78716c;font-size:13px;">Пароль:</td><td style="font-weight:bold;color:#1c1917;font-size:18px;letter-spacing:2px;">{temp_password}</td></tr>
+        <tr><td style="color:#78716c;font-size:13px;">Email:</td><td style="font-weight:bold;color:#1c1917;">{escape(to)}</td></tr>
+        <tr><td style="color:#78716c;font-size:13px;">Пароль:</td><td style="font-weight:bold;color:#1c1917;font-size:18px;letter-spacing:2px;">{escape(temp_password)}</td></tr>
       </table>
       <a href="{link}"
          style="display:inline-block;background:#dc2626;color:#fff;padding:12px 28px;

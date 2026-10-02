@@ -105,7 +105,7 @@ export default function ProfilePage() {
             <label className="block text-sm font-medium text-stone-700 mb-1">Новый пароль</label>
             <input type="password" value={pwForm.new_password}
               onChange={e => setPwForm({ ...pwForm, new_password: e.target.value })}
-              className={input} required minLength={6} />
+              className={input} required minLength={8} />
           </div>
           <div>
             <label className="block text-sm font-medium text-stone-700 mb-1">Повторите новый пароль</label>

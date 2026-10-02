@@ -65,7 +65,7 @@ export default function RegisterPage() {
           </div>
           <div>
             <label className="block text-sm font-medium text-stone-700 mb-1">Пароль</label>
-            <input type="password" name="password" value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} className={input} required />
+            <input type="password" name="password" value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} className={input} required minLength={8} />
           </div>
           {error && <p className="text-red-500 text-sm">{error}</p>}
           <button type="submit" disabled={loading}

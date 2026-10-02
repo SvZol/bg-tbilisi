@@ -1,55 +1,55 @@
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, BackgroundTasks, Form
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 from database import get_db
 from models.content import Post, Page, EventResult, EventPhoto
 from models.event import Event
+from models.team import Team, TeamMember
 from core.security import get_current_admin
-from pydantic import BaseModel
-from uuid import UUID, uuid4
+from core.uploads import save_upload, remove_upload, read_limited, UPLOAD_DIR, MAX_EXCEL_BYTES
+from pydantic import BaseModel, Field, model_validator
+from uuid import UUID
 from typing import Optional
 from datetime import datetime
-import shutil
+import logging
 import os
+import secrets
+import string
+
+from routers.events import EventOut
 
 router = APIRouter(prefix="/admin", tags=["admin"])
+log = logging.getLogger(__name__)
 
-UPLOAD_DIR = "uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
+
+EVENT_STATUSES = {"draft", "open", "closed", "finished"}
 
 # --- Мероприятия ---
 
 class EventCreate(BaseModel):
-    title: str
-    description: str | None = None
-    city: str | None = None
+    title: str = Field(min_length=1, max_length=200)
+    description: str | None = Field(default=None, max_length=10000)
+    city: str | None = Field(default=None, max_length=100)
     starts_at: datetime
     ends_at: datetime
     reg_deadline: datetime
-    min_team_size: int = 1
-    max_team_size: int = 10
+    min_team_size: int = Field(default=1, ge=1, le=100)
+    max_team_size: int = Field(default=10, ge=1, le=100)
 
-class EventOut(BaseModel):
-    id: UUID
-    title: str
-    description: str | None
-    city: str | None = None
-    starts_at: datetime
-    ends_at: datetime
-    reg_deadline: datetime
-    min_team_size: int
-    max_team_size: int
-    status: str
-
-    class Config:
-        from_attributes = True
+    @model_validator(mode="after")
+    def check_dates(self):
+        if self.ends_at < self.starts_at:
+            raise ValueError("Окончание раньше начала")
+        return self
 
 class EventEdit(BaseModel):
-    title: str | None = None
-    description: str | None = None
-    city: str | None = None
-    min_team_size: int | None = None
-    max_team_size: int | None = None
-    map_url: str | None = None
+    title: str | None = Field(default=None, min_length=1, max_length=200)
+    description: str | None = Field(default=None, max_length=10000)
+    city: str | None = Field(default=None, max_length=100)
+    min_team_size: int | None = Field(default=None, ge=1, le=100)
+    max_team_size: int | None = Field(default=None, ge=1, le=100)
+    map_url: str | None = Field(default=None, max_length=500)
 
 @router.get("/events", response_model=list[EventOut])
 def list_all_events(db: Session = Depends(get_db), admin=Depends(get_current_admin)):
@@ -80,6 +80,8 @@ def edit_event(event_id: UUID, data: EventEdit, db: Session = Depends(get_db), a
 
 @router.patch("/events/{event_id}/status")
 def update_event_status(event_id: UUID, status: str, db: Session = Depends(get_db), admin=Depends(get_current_admin)):
+    if status not in EVENT_STATUSES:
+        raise HTTPException(400, f"Допустимые статусы: {', '.join(sorted(EVENT_STATUSES))}")
     event = db.query(Event).filter(Event.id == event_id).first()
     if not event:
         raise HTTPException(status_code=404, detail="Мероприятие не найдено")
@@ -102,7 +104,6 @@ def reschedule_event(
     db: Session = Depends(get_db),
     admin=Depends(get_current_admin)
 ):
-    from models.team import Team
     from models.user import User
     from core.email import send_reschedule_email
 
@@ -139,10 +140,14 @@ def reschedule_event(
     return {"ok": True, "notified": len(notified)}
 
 
+class RegDeadlineUpdate(BaseModel):
+    reg_deadline: datetime
+
+
 @router.patch("/events/{event_id}/reg-deadline")
 def update_reg_deadline(
     event_id: UUID,
-    data: dict,
+    data: RegDeadlineUpdate,
     db: Session = Depends(get_db),
     admin=Depends(get_current_admin)
 ):
@@ -150,11 +155,7 @@ def update_reg_deadline(
     event = db.query(Event).filter(Event.id == event_id).first()
     if not event:
         raise HTTPException(404, "Мероприятие не найдено")
-    from datetime import datetime as dt
-    reg_deadline = data.get("reg_deadline")
-    if not reg_deadline:
-        raise HTTPException(400, "reg_deadline обязателен")
-    event.reg_deadline = dt.fromisoformat(reg_deadline)
+    event.reg_deadline = data.reg_deadline
     db.commit()
     return {"ok": True, "reg_deadline": event.reg_deadline.isoformat()}
 
@@ -190,27 +191,11 @@ async def upload_results_pdf(
     db: Session = Depends(get_db),
     admin=Depends(get_current_admin),
 ):
-    import shutil, uuid as _uuid
     event = db.query(Event).filter(Event.id == event_id).first()
     if not event:
         raise HTTPException(404, "Мероприятие не найдено")
-    if not file.filename.lower().endswith(".pdf"):
-        raise HTTPException(400, "Разрешены только PDF-файлы")
-
-    os.makedirs("uploads/pdfs", exist_ok=True)
-    filename = f"{_uuid.uuid4()}.pdf"
-    path = f"uploads/pdfs/{filename}"
-
-    # Удаляем старый файл если был
-    if event.results_pdf:
-        old = f"uploads/pdfs/{event.results_pdf}"
-        if os.path.exists(old):
-            os.remove(old)
-
-    content = await file.read()
-    with open(path, "wb") as f:
-        f.write(content)
-
+    filename = await save_upload(file, "pdfs", kind="pdf")
+    remove_upload(event.results_pdf, "pdfs")
     event.results_pdf = filename
     db.commit()
     return {"ok": True, "filename": filename}
@@ -222,9 +207,7 @@ def delete_results_pdf(event_id: UUID, db: Session = Depends(get_db), admin=Depe
     if not event:
         raise HTTPException(404, "Мероприятие не найдено")
     if event.results_pdf:
-        path = f"uploads/pdfs/{event.results_pdf}"
-        if os.path.exists(path):
-            os.remove(path)
+        remove_upload(event.results_pdf, "pdfs")
         event.results_pdf = None
         db.commit()
     return {"ok": True}
@@ -253,19 +236,11 @@ async def upload_event_pdf_multi(
     admin=Depends(get_current_admin),
 ):
     from models.content import EventPdf
-    import uuid as _uuid
     event = db.query(Event).filter(Event.id == event_id).first()
     if not event:
         raise HTTPException(404, "Мероприятие не найдено")
-    if not (file.filename or "").lower().endswith(".pdf"):
-        raise HTTPException(400, "Разрешены только PDF-файлы")
-    os.makedirs("uploads/pdfs", exist_ok=True)
-    filename = f"{_uuid.uuid4()}.pdf"
-    path = f"uploads/pdfs/{filename}"
-    content = await file.read()
-    with open(path, "wb") as f:
-        f.write(content)
-    pdf = EventPdf(event_id=event_id, filename=filename, display_name=display_name or file.filename)
+    filename = await save_upload(file, "pdfs", kind="pdf")
+    pdf = EventPdf(event_id=event_id, filename=filename, display_name=(display_name or file.filename or filename)[:200])
     db.add(pdf)
     db.commit()
     db.refresh(pdf)
@@ -277,25 +252,31 @@ def delete_event_pdf_multi(pdf_id: UUID, db: Session = Depends(get_db), admin=De
     pdf = db.query(EventPdf).filter(EventPdf.id == pdf_id).first()
     if not pdf:
         raise HTTPException(404, "Файл не найден")
-    path = f"uploads/pdfs/{pdf.filename}"
-    if os.path.exists(path):
-        os.remove(path)
+    remove_upload(pdf.filename, "pdfs")
     db.delete(pdf)
     db.commit()
     return {"ok": True}
+
+
+def _new_invite_code(db: Session) -> str:
+    alphabet = string.ascii_uppercase + string.digits
+    while True:
+        code = "".join(secrets.choice(alphabet) for _ in range(10))
+        if not db.query(Team.id).filter(Team.invite_code == code).first():
+            return code
 
 
 def _send_safe(fn, *args):
     try:
         fn(*args)
     except Exception as e:
-        print(f"[EMAIL ERROR] {type(e).__name__}: {e}")
+        log.error("Ошибка отправки письма: %s: %s", type(e).__name__, e)
 
 # --- Новости ---
 
 class PostCreate(BaseModel):
-    title: str
-    content: str
+    title: str = Field(min_length=1, max_length=200)
+    content: str = Field(max_length=50000)
     is_published: bool = False
 
 @router.post("/posts")
@@ -326,7 +307,7 @@ def update_post(post_id: UUID, data: PostCreate, db: Session = Depends(get_db), 
     return post
 
 @router.post("/posts/{post_id}/image")
-def upload_post_image(
+async def upload_post_image(
     post_id: UUID,
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
@@ -335,10 +316,8 @@ def upload_post_image(
     post = db.query(Post).filter(Post.id == post_id).first()
     if not post:
         raise HTTPException(status_code=404, detail="Не найдено")
-    filename = f"{uuid4()}_{file.filename}"
-    filepath = os.path.join(UPLOAD_DIR, filename)
-    with open(filepath, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
+    filename = await save_upload(file)
+    remove_upload(post.image_filename)
     post.image_filename = filename
     post.updated_at = datetime.utcnow()
     db.commit()
@@ -349,10 +328,7 @@ def delete_post(post_id: UUID, db: Session = Depends(get_db), admin=Depends(get_
     post = db.query(Post).filter(Post.id == post_id).first()
     if not post:
         raise HTTPException(404, "Не найдено")
-    if post.image_filename:
-        path = os.path.join(UPLOAD_DIR, post.image_filename)
-        if os.path.exists(path):
-            os.remove(path)
+    remove_upload(post.image_filename)
     db.delete(post)
     db.commit()
     return {"ok": True}
@@ -360,9 +336,9 @@ def delete_post(post_id: UUID, db: Session = Depends(get_db), admin=Depends(get_
 # --- Страницы ---
 
 class PageCreate(BaseModel):
-    slug: str
-    title: str
-    content: str
+    slug: str = Field(min_length=1, max_length=100, pattern=r"^[a-z0-9-]+$")
+    title: str = Field(min_length=1, max_length=200)
+    content: str = Field(max_length=100000)
     is_published: bool = False
 
 @router.post("/pages")
@@ -408,18 +384,16 @@ def get_results(event_id: UUID, db: Session = Depends(get_db)):
 # --- Фото ---
 
 @router.post("/photos/{event_id}")
-def upload_photo(
+async def upload_photo(
     event_id: UUID,
     caption: Optional[str] = None,
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
     admin=Depends(get_current_admin)
 ):
-    filename = f"{uuid4()}_{file.filename}"
-    filepath = os.path.join(UPLOAD_DIR, filename)
-    with open(filepath, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
-
+    if not db.query(Event.id).filter(Event.id == event_id).first():
+        raise HTTPException(404, "Мероприятие не найдено")
+    filename = await save_upload(file)
     photo = EventPhoto(event_id=event_id, filename=filename, caption=caption)
     db.add(photo)
     db.commit()
@@ -434,7 +408,6 @@ def get_photos(event_id: UUID, db: Session = Depends(get_db)):
 
 @router.get("/teams/{event_id}")
 def get_event_teams(event_id: UUID, db: Session = Depends(get_db), admin=Depends(get_current_admin)):
-    from models.team import Team, TeamMember
     from models.user import User
 
     teams = db.query(Team).filter(Team.event_id == event_id).all()
@@ -480,14 +453,12 @@ def get_event_teams(event_id: UUID, db: Session = Depends(get_db), admin=Depends
 
 @router.patch("/teams/{team_id}/category")
 def set_team_category(team_id: UUID, category: str, db: Session = Depends(get_db), admin=Depends(get_current_admin)):
-    from models.team import Team
     team = db.query(Team).filter(Team.id == team_id).first()
     if not team:
         raise HTTPException(404, "Команда не найдена")
     if category not in ("adult", "child"):
         raise HTTPException(400, "Допустимые значения: adult, child")
     if category == "child":
-        from models.team import TeamMember
         member_count = db.query(TeamMember).filter(TeamMember.team_id == team_id).count()
         if member_count < 2:
             raise HTTPException(400, "Для детского зачёта (Лосята) нужно минимум 2 участника")
@@ -497,7 +468,6 @@ def set_team_category(team_id: UUID, category: str, db: Session = Depends(get_db
 
 @router.delete("/teams/{team_id}")
 def delete_team(team_id: UUID, db: Session = Depends(get_db), admin=Depends(get_current_admin)):
-    from models.team import Team, TeamMember
     from models.content import EventResult, TeamQuestionResult
     db.query(TeamQuestionResult).filter(TeamQuestionResult.team_id == team_id).delete()
     db.query(EventResult).filter(EventResult.team_id == team_id).delete()
@@ -508,7 +478,6 @@ def delete_team(team_id: UUID, db: Session = Depends(get_db), admin=Depends(get_
 
 @router.delete("/members/{member_id}")
 def delete_member(member_id: UUID, db: Session = Depends(get_db), admin=Depends(get_current_admin)):
-    from models.team import TeamMember
     member = db.query(TeamMember).filter(TeamMember.id == member_id).first()
     if not member:
         raise HTTPException(status_code=404, detail="Не найдено")
@@ -516,8 +485,7 @@ def delete_member(member_id: UUID, db: Session = Depends(get_db), admin=Depends(
     db.delete(member)
     db.flush()
     # Если остался 1 участник — автоматически переключаем на взрослый зачёт
-    from models.team import Team as _Team
-    team = db.query(_Team).filter(_Team.id == team_id).first()
+    team = db.query(Team).filter(Team.id == team_id).first()
     if team:
         remaining = db.query(TeamMember).filter(TeamMember.team_id == team_id).count()
         if remaining < 2 and team.category == "child":
@@ -585,19 +553,11 @@ async def upload_question_image(
     db: Session = Depends(get_db), admin=Depends(get_current_admin)
 ):
     from models.content import EventQuestion
-    import uuid as uuid_mod
     q = db.query(EventQuestion).filter(EventQuestion.id == question_id).first()
     if not q:
         raise HTTPException(404, "Не найдено")
-    ext = os.path.splitext(file.filename or "")[1].lower() or ".jpg"
-    filename = f"q_{uuid_mod.uuid4().hex}{ext}"
-    path = os.path.join("uploads", filename)
-    with open(path, "wb") as f:
-        content = await file.read()
-        f.write(content)
-    if q.image_filename:
-        try: os.remove(os.path.join("uploads", q.image_filename))
-        except: pass
+    filename = await save_upload(file, prefix="q_")
+    remove_upload(q.image_filename)
     q.image_filename = filename
     db.commit()
     return {"image_filename": filename}
@@ -677,7 +637,6 @@ async def generate_results_template(
     ws.title = "проверка"
 
     dark   = PatternFill("solid", start_color="292524")
-    gray   = PatternFill("solid", start_color="E7E5E4")
     orange = PatternFill("solid", start_color="FED7AA")
     purple = PatternFill("solid", start_color="EDE9FE")
     orange_hdr = PatternFill("solid", start_color="EA580C")
@@ -795,9 +754,9 @@ async def import_kp_excel(
     admin=Depends(get_current_admin)
 ):
     import openpyxl, io
-    from models.content import EventQuestion, TeamQuestionResult
+    from models.content import EventQuestion
 
-    content = await file.read()
+    content = await read_limited(file, MAX_EXCEL_BYTES)
     try:
         wb = openpyxl.load_workbook(io.BytesIO(content), data_only=True)
     except Exception:
@@ -904,13 +863,13 @@ async def import_teams_excel(
     from models.user import User
     from core.security import hash_password
     from core.email import send_invite_email
-    import openpyxl, io, secrets, string
+    import openpyxl, io
 
     event = db.query(Event).filter(Event.id == event_id).first()
     if not event:
         raise HTTPException(404, "Мероприятие не найдено")
 
-    content = await file.read()
+    content = await read_limited(file, MAX_EXCEL_BYTES)
     wb = openpyxl.load_workbook(io.BytesIO(content))
     ws = wb.active
 
@@ -943,7 +902,7 @@ async def import_teams_excel(
         email = None
         telegram = None
         if contact and _re.match(r'^[^@]+@[^@]+\.[^@]+$', contact) and "t.me" not in contact:
-            email = contact
+            email = contact.lower()
         else:
             telegram = contact
 
@@ -951,7 +910,7 @@ async def import_teams_excel(
         user = None
         temp_password = None
         if email:
-            user = db.query(User).filter(User.email == email).first()
+            user = db.query(User).filter(func.lower(User.email) == email).first()
             if not user:
                 # Генерируем временный пароль
                 alphabet = string.ascii_letters + string.digits
@@ -968,12 +927,7 @@ async def import_teams_excel(
                 db.flush()
 
         # Генерируем уникальный код приглашения
-        import secrets as _sec, string as _str
-        _alph = _str.ascii_uppercase + _str.digits
-        while True:
-            invite_code = "".join(_sec.choice(_alph) for _ in range(10))
-            if not db.query(Team).filter(Team.invite_code == invite_code).first():
-                break
+        invite_code = _new_invite_code(db)
 
         # Создаём команду
         team = Team(
@@ -1063,7 +1017,7 @@ async def import_results_excel(
     from models.content import EventQuestion, TeamQuestionResult
     from models.team import Team
 
-    content = await file.read()
+    content = await read_limited(file, MAX_EXCEL_BYTES)
     try:
         wb = openpyxl.load_workbook(io.BytesIO(content), data_only=True)
     except Exception:
@@ -1155,7 +1109,6 @@ async def import_results_excel(
         team_entries = [(_find_team(n), team_col_start + i, None) for i, n in enumerate(team_names)]
 
     # Команды не создаём — только матчим по имени из БД
-    auto_created = 0
 
     # Читаем лист 'ответы' — реальные ответы команд и правильные ответы
     # answers_map[(kp_num, q_type)] = {team_name_lower: answer_str}
@@ -1343,8 +1296,8 @@ def get_questions_public(event_id: UUID, db: Session = Depends(get_db)):
 # --- Страницы (правила, информация) ---
 
 class PageUpsert(BaseModel):
-    title: str
-    content: str
+    title: str = Field(min_length=1, max_length=200)
+    content: str = Field(max_length=100000)
     is_published: bool = True
 
 @router.get("/public/pages/{slug}")
@@ -1368,17 +1321,7 @@ async def upload_page_image(
     db: Session = Depends(get_db),
     admin=Depends(get_current_admin),
 ):
-    import uuid as _uuid
-    allowed = {'.jpg', '.jpeg', '.png', '.gif', '.webp'}
-    ext = os.path.splitext(file.filename)[1].lower()
-    if ext not in allowed:
-        raise HTTPException(400, "Разрешены только изображения")
-    os.makedirs("uploads/pages", exist_ok=True)
-    filename = f"{_uuid.uuid4()}{ext}"
-    path = f"uploads/pages/{filename}"
-    content = await file.read()
-    with open(path, "wb") as f:
-        f.write(content)
+    filename = await save_upload(file, "pages")
     return {"filename": filename, "url": f"/uploads/pages/{filename}"}
 
 @router.put("/pages/{slug}")
@@ -1439,7 +1382,7 @@ def get_scoreboard(event_id: UUID, db: Session = Depends(get_db), admin=Depends(
 
 @router.post("/events/{event_id}/publish-results")
 def publish_results(event_id: UUID, background_tasks: BackgroundTasks, db: Session = Depends(get_db), admin=Depends(get_current_admin)):
-    from models.content import EventQuestion, EventResult
+    from models.content import EventQuestion
     from models.team import Team
     from models.user import User
     from core.email import send_results_email
@@ -1521,21 +1464,20 @@ def generate_team_invite_code(team_id: UUID, db: Session = Depends(get_db), admi
     team = db.query(Team).filter(Team.id == team_id).first()
     if not team:
         raise HTTPException(404, "Команда не найдена")
-    import secrets as _sec, string as _str
-    _alph = _str.ascii_uppercase + _str.digits
-    while True:
-        code = "".join(_sec.choice(_alph) for _ in range(10))
-        if not db.query(Team).filter(Team.invite_code == code).first():
-            break
+    code = _new_invite_code(db)
     team.invite_code = code
     db.commit()
     return {"invite_code": code}
 
 
+class RoleUpdate(BaseModel):
+    role: str
+
+
 @router.patch("/users/{user_id}/role")
-def set_user_role(user_id: UUID, data: dict, db: Session = Depends(get_db), admin=Depends(get_current_admin)):
+def set_user_role(user_id: UUID, data: RoleUpdate, db: Session = Depends(get_db), admin=Depends(get_current_admin)):
     from models.user import User
-    role = data.get("role")
+    role = data.role
     if role not in ("user", "admin"):
         raise HTTPException(400, "Роль должна быть 'user' или 'admin'")
     user = db.query(User).filter(User.id == user_id).first()

@@ -1,15 +1,24 @@
+import logging
 import secrets
 from datetime import datetime, timedelta, timezone
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
-from pydantic import BaseModel
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Query
+from sqlalchemy import func
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 from database import get_db
 from models.user import User
 from schemas.user import UserRegister, UserLogin, UserOut, Token
-from core.security import hash_password, verify_password, create_access_token, get_current_user
+from core.security import (
+    hash_password, verify_password, validate_password, create_access_token,
+    get_current_user, get_current_admin,
+)
 from core.email import send_verification_email, send_reset_email
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+log = logging.getLogger(__name__)
+
+# Хеш для выравнивания времени ответа, когда пользователь не найден (защита от перебора email)
+_DUMMY_HASH = hash_password("dummy-password")
 
 
 def _make_token() -> str:
@@ -21,12 +30,13 @@ def _send_safe(fn, *args):
     try:
         fn(*args)
     except Exception as e:
-        print(f"[EMAIL ERROR] {e}")
+        log.error("Ошибка отправки письма: %s", e)
 
 
 @router.post("/register", response_model=UserOut)
 def register(data: UserRegister, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
-    existing = db.query(User).filter(User.email == data.email).first()
+    validate_password(data.password)
+    existing = db.query(User).filter(func.lower(User.email) == data.email).first()
     if existing:
         raise HTTPException(status_code=400, detail="Email уже используется")
 
@@ -52,8 +62,11 @@ def register(data: UserRegister, background_tasks: BackgroundTasks, db: Session 
 
 @router.post("/login", response_model=Token)
 def login(data: UserLogin, db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.email == data.email).first()
-    if not user or not verify_password(data.password, user.password_hash):
+    user = db.query(User).filter(func.lower(User.email) == data.email).first()
+    if not user:
+        verify_password(data.password, _DUMMY_HASH)
+        raise HTTPException(status_code=401, detail="Неверный email или пароль")
+    if not verify_password(data.password, user.password_hash):
         raise HTTPException(status_code=401, detail="Неверный email или пароль")
     user.last_login_at = datetime.now(timezone.utc)
     db.commit()
@@ -70,9 +83,11 @@ def get_me(db: Session = Depends(get_db), user_id: str = Depends(get_current_use
 
 
 @router.get("/users/search")
-def search_users(q: str, db: Session = Depends(get_db), user_id: str = Depends(get_current_user)):
+def search_users(q: str = Query(min_length=3, max_length=50), db: Session = Depends(get_db), admin=Depends(get_current_admin)):
+    """Поиск пользователей — только для администратора (иначе утекают email всех пользователей)."""
+    pattern = "%" + q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
     users = db.query(User).filter(
-        (User.email.ilike(f"%{q}%")) | (User.full_name.ilike(f"%{q}%"))
+        (User.email.ilike(pattern, escape="\\")) | (User.full_name.ilike(pattern, escape="\\"))
     ).limit(10).all()
     return [{"id": str(u.id), "full_name": u.full_name, "email": u.email} for u in users]
 
@@ -96,7 +111,7 @@ def verify_email(token: str, db: Session = Depends(get_db)):
 
 @router.post("/resend-verification")
 def resend_verification(email: str, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.email == email).first()
+    user = db.query(User).filter(func.lower(User.email) == email.strip().lower()).first()
     if not user:
         return {"ok": True}
     if user.is_verified:
@@ -116,7 +131,7 @@ def resend_verification(email: str, background_tasks: BackgroundTasks, db: Sessi
 
 @router.post("/forgot-password")
 def forgot_password(email: str, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.email == email).first()
+    user = db.query(User).filter(func.lower(User.email) == email.strip().lower()).first()
     if user:
         token = _make_token()
         user.reset_token = token
@@ -126,17 +141,21 @@ def forgot_password(email: str, background_tasks: BackgroundTasks, db: Session =
     return {"ok": True, "message": "Если такой email зарегистрирован, письмо отправлено"}
 
 
+class ResetPassword(BaseModel):
+    token: str = Field(max_length=200)
+    new_password: str = Field(max_length=128)
+
+
 @router.post("/reset-password")
-def reset_password(token: str, new_password: str, db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.reset_token == token).first()
+def reset_password(data: ResetPassword, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.reset_token == data.token).first()
     if not user:
         raise HTTPException(400, "Неверная или устаревшая ссылка")
     if user.reset_token_expires and user.reset_token_expires < datetime.utcnow():
         raise HTTPException(400, "Ссылка истекла. Запросите сброс пароля заново.")
-    if len(new_password) < 6:
-        raise HTTPException(400, "Пароль должен быть минимум 6 символов")
+    validate_password(data.new_password)
 
-    user.password_hash = hash_password(new_password)
+    user.password_hash = hash_password(data.new_password)
     user.reset_token = None
     user.reset_token_expires = None
     db.commit()
@@ -146,29 +165,27 @@ def reset_password(token: str, new_password: str, db: Session = Depends(get_db))
 # --- Смена пароля авторизованным пользователем ---
 
 class ChangePassword(BaseModel):
-    current_password: str
-    new_password: str
+    current_password: str = Field(max_length=128)
+    new_password: str = Field(max_length=128)
 
 @router.post("/change-password")
 def change_password(data: ChangePassword, db: Session = Depends(get_db), user_id: str = Depends(get_current_user)):
-    from pydantic import BaseModel as _BM
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(404, "Пользователь не найден")
     if not verify_password(data.current_password, user.password_hash):
         raise HTTPException(400, "Неверный текущий пароль")
-    if len(data.new_password) < 6:
-        raise HTTPException(400, "Новый пароль должен быть минимум 6 символов")
+    validate_password(data.new_password)
     user.password_hash = hash_password(data.new_password)
     db.commit()
     return {"ok": True}
 
 
 class UpdateProfile(BaseModel):
-    full_name: str | None = None
-    phone: str | None = None
+    full_name: str | None = Field(default=None, min_length=1, max_length=100)
+    phone: str | None = Field(default=None, max_length=30)
 
-@router.patch("/me")
+@router.patch("/me", response_model=UserOut)
 def update_profile(data: UpdateProfile, db: Session = Depends(get_db), user_id: str = Depends(get_current_user)):
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
@@ -179,4 +196,4 @@ def update_profile(data: UpdateProfile, db: Session = Depends(get_db), user_id: 
         user.phone = data.phone
     db.commit()
     db.refresh(user)
-    return user
+    return UserOut.model_validate(user)

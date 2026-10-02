@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from database import Base, engine
 from routers import auth, events, teams, admin
-import models
+import models  # noqa: F401
 import os
 
 Base.metadata.create_all(bind=engine)
@@ -23,7 +23,14 @@ with engine.connect() as conn:
 
 os.makedirs("uploads", exist_ok=True)
 
-app = FastAPI(title="Event Platform API")
+# Swagger/OpenAPI в проде выключен (ENABLE_DOCS=1 включает для разработки)
+_docs = os.getenv("ENABLE_DOCS") == "1"
+app = FastAPI(
+    title="Event Platform API",
+    docs_url="/docs" if _docs else None,
+    redoc_url=None,
+    openapi_url="/openapi.json" if _docs else None,
+)
 
 # CORS — читаем из env, по умолчанию localhost для разработки
 _cors_origins = os.getenv("CORS_ORIGINS", "http://localhost:3000").split(",")
@@ -32,9 +39,21 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[o.strip() for o in _cors_origins],
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
+    allow_headers=["Authorization", "Content-Type"],
 )
+
+
+@app.middleware("http")
+async def security_headers(request, call_next):
+    response = await call_next(request)
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    if request.url.path.startswith("/uploads/") and not request.url.path.lower().endswith(".pdf"):
+        # загруженные файлы никогда не исполняются как страницы
+        response.headers["Content-Security-Policy"] = "default-src 'none'; sandbox"
+    return response
+
 
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 

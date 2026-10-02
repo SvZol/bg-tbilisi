@@ -14,7 +14,7 @@ interface Event {
 
 function getMapIds(mapUrl: string | null): { embedUrl: string; viewUrl: string } | null {
   if (!mapUrl) return null
-  const m = mapUrl.match(/[?&]mid=([^&]+)/)
+  const m = mapUrl.match(/[?&]mid=([\w-]+)/)
   if (!m) return null
   return {
     embedUrl: `https://www.google.com/maps/d/embed?mid=${m[1]}`,

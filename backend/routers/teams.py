@@ -4,27 +4,31 @@ from database import get_db
 from models.team import Team, TeamMember
 from models.event import Event
 from core.security import get_current_user
-from pydantic import BaseModel
+from models.user import User
+from pydantic import BaseModel, EmailStr, Field
 from uuid import UUID
 from typing import Optional
 
 router = APIRouter(prefix="/teams", tags=["teams"])
 
+MAX_MEMBERS = 30
+
+
 class MemberInput(BaseModel):
     user_id: Optional[UUID] = None
-    guest_name: Optional[str] = None
-    guest_email: Optional[str] = None
-    role: str = "member"
+    guest_name: Optional[str] = Field(default=None, max_length=100)
+    guest_email: Optional[EmailStr] = None
+    role: str = "member"  # капитан назначается только при создании команды
 
 class TeamCreate(BaseModel):
     event_id: UUID
-    name: str
+    name: str = Field(min_length=1, max_length=100)
     category: str = "adult"  # "adult" | "child"
-    captain_name: Optional[str] = None
-    captain_phone: Optional[str] = None
-    member_count: Optional[int] = None
-    description: Optional[str] = None
-    members: list[MemberInput] = []
+    captain_name: Optional[str] = Field(default=None, max_length=100)
+    captain_phone: Optional[str] = Field(default=None, max_length=30)
+    member_count: Optional[int] = Field(default=None, ge=1, le=MAX_MEMBERS)
+    description: Optional[str] = Field(default=None, max_length=2000)
+    members: list[MemberInput] = Field(default=[], max_length=MAX_MEMBERS)
 
 class TeamMemberOut(BaseModel):
     id: UUID
@@ -54,24 +58,21 @@ class TeamOut(BaseModel):
     class Config:
         from_attributes = True
 
-def _team_to_dict(team: Team, db: Session) -> dict:
-    from models.user import User
-    members = []
-    for m in team.members:
-        full_name = None
-        if m.user_id:
-            u = db.query(User).filter(User.id == m.user_id).first()
-            if u:
-                full_name = u.full_name
-        members.append({
-            "id": str(m.id),
-            "user_id": str(m.user_id) if m.user_id else None,
-            "guest_name": m.guest_name,
-            "guest_email": m.guest_email,
-            "full_name": full_name,
-            "role": m.role,
-            "is_registered": m.is_registered,
-        })
+def _team_to_dict(team: Team, db: Session, private: bool = True) -> dict:
+    """private=False — публичный вид: без email гостей и телефона капитана."""
+    user_ids = [m.user_id for m in team.members if m.user_id]
+    names = {}
+    if user_ids:
+        names = {u.id: u.full_name for u in db.query(User.id, User.full_name).filter(User.id.in_(user_ids))}
+    members = [{
+        "id": str(m.id),
+        "user_id": str(m.user_id) if m.user_id else None,
+        "guest_name": m.guest_name,
+        "guest_email": m.guest_email if private else None,
+        "full_name": names.get(m.user_id),
+        "role": m.role,
+        "is_registered": m.is_registered,
+    } for m in team.members]
     return {
         "id": str(team.id),
         "event_id": str(team.event_id),
@@ -80,15 +81,42 @@ def _team_to_dict(team: Team, db: Session) -> dict:
         "status": team.status,
         "category": team.category or "adult",
         "captain_name": team.captain_name,
-        "captain_phone": team.captain_phone,
+        "captain_phone": team.captain_phone if private else None,
         "member_count": team.member_count,
         "description": team.description,
         "members": members,
     }
 
+
+def _get_team_or_404(team_id: UUID, db: Session) -> Team:
+    team = db.query(Team).filter(Team.id == team_id).first()
+    if not team:
+        raise HTTPException(status_code=404, detail="Команда не найдена")
+    return team
+
+
+def _is_captain(team: Team, user_id: str, db: Session) -> bool:
+    return str(team.created_by) == str(user_id) or db.query(TeamMember).filter(
+        TeamMember.team_id == team.id,
+        TeamMember.user_id == user_id,
+        TeamMember.role == "captain",
+    ).first() is not None
+
+
+def _require_captain(team_id: UUID, user_id: str, db: Session) -> Team:
+    team = _get_team_or_404(team_id, db)
+    if not _is_captain(team, user_id, db):
+        raise HTTPException(status_code=403, detail="Только капитан может редактировать команду")
+    return team
+
+
+def _check_user_exists(user_id: Optional[UUID], db: Session) -> None:
+    if user_id and not db.query(User.id).filter(User.id == user_id).first():
+        raise HTTPException(status_code=400, detail="Пользователь не найден")
+
+
 @router.post("/")
 def create_team(data: TeamCreate, db: Session = Depends(get_db), user_id: str = Depends(get_current_user)):
-    from models.user import User
     event = db.query(Event).filter(Event.id == data.event_id).first()
     if not event:
         raise HTTPException(status_code=404, detail="Мероприятие не найдено")
@@ -102,6 +130,9 @@ def create_team(data: TeamCreate, db: Session = Depends(get_db), user_id: str = 
     if cat == "child" and member_count < 2:
         raise HTTPException(status_code=400,
             detail="Добавьте участников в команду или отметьте её как Лосей (взрослый зачёт)")
+
+    for m in data.members:
+        _check_user_exists(m.user_id, db)
 
     existing = db.query(Team).filter(Team.event_id == data.event_id, Team.name == data.name).first()
     if existing:
@@ -141,7 +172,7 @@ def create_team(data: TeamCreate, db: Session = Depends(get_db), user_id: str = 
             user_id=m.user_id,
             guest_name=m.guest_name,
             guest_email=m.guest_email,
-            role=m.role,
+            role="member",
             is_registered=m.user_id is not None,
         )
         db.add(member)
@@ -153,22 +184,23 @@ def create_team(data: TeamCreate, db: Session = Depends(get_db), user_id: str = 
 @router.get("/event/{event_id}")
 def list_teams(event_id: UUID, db: Session = Depends(get_db)):
     teams = db.query(Team).filter(Team.event_id == event_id).all()
-    return [_team_to_dict(t, db) for t in teams]
+    return [_team_to_dict(t, db, private=False) for t in teams]
 
 @router.post("/{team_id}/members")
 def add_member(team_id: UUID, member: MemberInput, db: Session = Depends(get_db), user_id: str = Depends(get_current_user)):
-    team = db.query(Team).filter(Team.id == team_id).first()
-    if not team:
-        raise HTTPException(status_code=404, detail="Команда не найдена")
-    if str(team.created_by) != str(user_id):
-        raise HTTPException(status_code=403, detail="Только капитан может редактировать команду")
+    team = _require_captain(team_id, user_id, db)
+    _check_user_exists(member.user_id, db)
+    if not member.user_id and not member.guest_name:
+        raise HTTPException(status_code=400, detail="Укажите имя участника")
+    if db.query(TeamMember).filter(TeamMember.team_id == team.id).count() >= MAX_MEMBERS:
+        raise HTTPException(status_code=400, detail="Слишком много участников в команде")
 
     new_member = TeamMember(
         team_id=team_id,
         user_id=member.user_id,
         guest_name=member.guest_name,
         guest_email=member.guest_email,
-        role=member.role,
+        role="member",
         is_registered=member.user_id is not None,
     )
     db.add(new_member)
@@ -178,11 +210,7 @@ def add_member(team_id: UUID, member: MemberInput, db: Session = Depends(get_db)
 
 @router.delete("/{team_id}/members/{member_id}")
 def remove_member(team_id: UUID, member_id: UUID, db: Session = Depends(get_db), user_id: str = Depends(get_current_user)):
-    team = db.query(Team).filter(Team.id == team_id).first()
-    if not team:
-        raise HTTPException(status_code=404, detail="Команда не найдена")
-    if str(team.created_by) != str(user_id):
-        raise HTTPException(status_code=403, detail="Только капитан может редактировать команду")
+    team = _require_captain(team_id, user_id, db)
 
     member = db.query(TeamMember).filter(TeamMember.id == member_id, TeamMember.team_id == team_id).first()
     if not member:
@@ -200,26 +228,19 @@ def remove_member(team_id: UUID, member_id: UUID, db: Session = Depends(get_db),
     return {"ok": True}
 
 class TeamUpdate(BaseModel):
-    name: Optional[str] = None
+    name: Optional[str] = Field(default=None, max_length=100)
     category: Optional[str] = None
-    captain_name: Optional[str] = None
-    captain_phone: Optional[str] = None
-    member_count: Optional[int] = None
-    description: Optional[str] = None
+    captain_name: Optional[str] = Field(default=None, max_length=100)
+    captain_phone: Optional[str] = Field(default=None, max_length=30)
+    member_count: Optional[int] = Field(default=None, ge=1, le=MAX_MEMBERS)
+    description: Optional[str] = Field(default=None, max_length=2000)
 
 @router.patch("/{team_id}")
 def update_team(team_id: UUID, data: TeamUpdate, db: Session = Depends(get_db), user_id: str = Depends(get_current_user)):
-    team = db.query(Team).filter(Team.id == team_id).first()
-    if not team:
-        raise HTTPException(status_code=404, detail="Команда не найдена")
-    is_captain = str(team.created_by) == str(user_id) or db.query(TeamMember).filter(
-        TeamMember.team_id == team_id,
-        TeamMember.user_id == user_id,
-        TeamMember.role == "captain"
-    ).first() is not None
-    if not is_captain:
-        raise HTTPException(status_code=403, detail="Только капитан может редактировать команду")
-    if data.name:
+    team = _require_captain(team_id, user_id, db)
+    if data.name and data.name != team.name:
+        if db.query(Team).filter(Team.event_id == team.event_id, Team.name == data.name).first():
+            raise HTTPException(status_code=400, detail="Команда с таким названием уже зарегистрирована на это мероприятие")
         team.name = data.name
     if data.category in ("adult", "child"):
         if data.category == "child":
@@ -254,7 +275,7 @@ def get_team_by_invite(code: str, db: Session = Depends(get_db)):
 
 
 class ClaimInput(BaseModel):
-    invite_code: str
+    invite_code: str = Field(min_length=1, max_length=12)
 
 @router.post("/claim")
 def claim_team(data: ClaimInput, db: Session = Depends(get_db), user_id: str = Depends(get_current_user)):
@@ -293,17 +314,19 @@ def claim_team(data: ClaimInput, db: Session = Depends(get_db), user_id: str = D
 
 @router.get("/{team_id}/public")
 def get_team_public(team_id: UUID, db: Session = Depends(get_db)):
-    team = db.query(Team).filter(Team.id == team_id).first()
-    if not team:
-        raise HTTPException(status_code=404, detail="Команда не найдена")
+    team = _get_team_or_404(team_id, db)
     return {"id": str(team.id), "name": team.name, "event_id": str(team.event_id)}
 
 
 @router.get("/{team_id}")
 def get_team(team_id: UUID, db: Session = Depends(get_db), user_id: str = Depends(get_current_user)):
-    team = db.query(Team).filter(Team.id == team_id).first()
-    if not team:
-        raise HTTPException(status_code=404, detail="Команда не найдена")
+    """Полные данные (email, телефон) — только участникам команды и админу."""
+    team = _get_team_or_404(team_id, db)
+    is_member = db.query(TeamMember.id).filter(TeamMember.team_id == team_id, TeamMember.user_id == user_id).first()
+    if not (is_member or _is_captain(team, user_id, db)):
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user or user.role != "admin":
+            raise HTTPException(status_code=403, detail="Нет доступа к этой команде")
     return _team_to_dict(team, db)
 
 

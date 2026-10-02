@@ -1,15 +1,28 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field, field_validator
 from uuid import UUID
+
 
 class UserRegister(BaseModel):
     email: EmailStr
-    password: str
-    full_name: str
-    phone: str | None = None
+    password: str = Field(max_length=128)
+    full_name: str = Field(min_length=1, max_length=100)
+    phone: str | None = Field(default=None, max_length=30)
+
+    @field_validator("email")
+    @classmethod
+    def lower_email(cls, v: str) -> str:
+        return v.lower()
+
 
 class UserLogin(BaseModel):
     email: EmailStr
-    password: str
+    password: str = Field(max_length=128)
+
+    @field_validator("email")
+    @classmethod
+    def lower_email(cls, v: str) -> str:
+        return v.lower()
+
 
 class UserOut(BaseModel):
     id: UUID
@@ -20,6 +33,7 @@ class UserOut(BaseModel):
 
     class Config:
         from_attributes = True
+
 
 class Token(BaseModel):
     access_token: str

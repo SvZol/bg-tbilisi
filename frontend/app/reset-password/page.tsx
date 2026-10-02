@@ -20,13 +20,13 @@ function ResetPasswordForm() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError('')
-    if (password.length < 6) { setError('Пароль должен быть минимум 6 символов'); return }
+    if (password.length < 8) { setError('Пароль должен быть минимум 8 символов'); return }
     if (password !== password2) { setError('Пароли не совпадают'); return }
     if (!token) { setError('Токен не найден. Используйте ссылку из письма.'); return }
 
     setLoading(true)
     try {
-      await api.post(`/auth/reset-password?token=${encodeURIComponent(token)}&new_password=${encodeURIComponent(password)}`)
+      await api.post('/auth/reset-password', { token, new_password: password })
       setDone(true)
       setTimeout(() => router.push('/login'), 2500)
     } catch (err: any) {
@@ -60,13 +60,13 @@ function ResetPasswordForm() {
             <label className="block text-sm font-medium text-stone-700 mb-1">Новый пароль</label>
             <input type="password" value={password}
               onChange={e => setPassword(e.target.value)}
-              className={input} required minLength={6} />
+              className={input} required minLength={8} />
           </div>
           <div>
             <label className="block text-sm font-medium text-stone-700 mb-1">Повторите пароль</label>
             <input type="password" value={password2}
               onChange={e => setPassword2(e.target.value)}
-              className={input} required minLength={6} />
+              className={input} required minLength={8} />
           </div>
           {error && <p className="text-red-500 text-sm">{error}</p>}
           <button type="submit" disabled={loading}
