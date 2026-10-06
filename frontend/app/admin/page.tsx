@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import api from '@/lib/api'
+import MarkdownHint from '@/components/MarkdownHint'
 import { useAuth } from '@/context/AuthContext'
 
 interface Event { id: string; title: string; status: string; starts_at: string; ends_at: string; reg_deadline: string; city?: string; min_team_size: number; max_team_size: number; map_url?: string | null }
@@ -64,6 +65,10 @@ export default function AdminPage() {
   const [rescheduleForm, setRescheduleForm] = useState({ starts_at: '', ends_at: '', reg_deadline: '' })
   const [rescheduleMsg, setRescheduleMsg] = useState('')
   const [notifyMsg, setNotifyMsg] = useState('')
+  const [notifyDlg, setNotifyDlg] = useState<{ eventId: string; title: string; recipients: { email: string; full_name: string }[] } | null>(null)
+  const [notifyForm, setNotifyForm] = useState({ subject: '', message: '' })
+  const [notifySending, setNotifySending] = useState(false)
+  const [postImage, setPostImage] = useState<File | null>(null)
 
   // Изменение дедлайна без уведомлений
   const [deadlineEditId, setDeadlineEditId] = useState<string | null>(null)
@@ -143,8 +148,18 @@ export default function AdminPage() {
     e.preventDefault(); setPostError('')
     try {
       const res = await api.post('/admin/posts', postForm)
-      setPosts([res.data, ...posts])
+      let created = res.data
+      if (postImage) {
+        const formData = new FormData()
+        formData.append('file', postImage)
+        try {
+          const img = await api.post(`/admin/posts/${created.id}/image`, formData, { headers: { 'Content-Type': 'multipart/form-data' } })
+          created = { ...created, image_filename: img.data.image_filename }
+        } catch { setPostError('Новость создана, но фото не загрузилось — добавьте его в списке ниже') }
+      }
+      setPosts([created, ...posts])
       setPostForm({ title: '', content: '', is_published: false })
+      setPostImage(null)
     } catch { setPostError('Ошибка при создании новости') }
   }
 
@@ -180,12 +195,25 @@ export default function AdminPage() {
     } catch { setRescheduleMsg('Ошибка') }
   }
 
-  async function handleNotifyNew(eventId: string) {
+  async function openNotifyDialog(ev: Event) {
     setNotifyMsg('')
     try {
-      const res = await api.post(`/admin/events/${eventId}/notify-new`)
-      setNotifyMsg(`Оповещено пользователей: ${res.data.notified}`)
-    } catch { setNotifyMsg('Ошибка') }
+      const res = await api.get(`/admin/events/${ev.id}/notify-new/preview`)
+      setNotifyForm({ subject: res.data.subject, message: res.data.message })
+      setNotifyDlg({ eventId: ev.id, title: ev.title, recipients: res.data.recipients })
+    } catch { setNotifyMsg('Не удалось подготовить рассылку') }
+  }
+
+  async function sendNotify(testOnly: boolean) {
+    if (!notifyDlg) return
+    if (!testOnly && !confirm(`Отправить письмо ${notifyDlg.recipients.length} получателям? Отменить рассылку после отправки нельзя.`)) return
+    setNotifySending(true)
+    try {
+      const res = await api.post(`/admin/events/${notifyDlg.eventId}/notify-new`, { ...notifyForm, test_only: testOnly })
+      setNotifyMsg(testOnly ? 'Тестовое письмо отправлено вам' : `Рассылка отправлена: ${res.data.notified} получателей`)
+      if (!testOnly) setNotifyDlg(null)
+    } catch { setNotifyMsg('Ошибка отправки') }
+    finally { setNotifySending(false) }
   }
 
   async function loadScoreboard(eventId: string) {
@@ -481,6 +509,40 @@ export default function AdminPage() {
           <div>
             <h2 className="font-bold text-stone-900 mb-3">Все мероприятия</h2>
             {notifyMsg && <p className="text-sm text-green-700 mb-3 font-medium">{notifyMsg}</p>}
+            {notifyDlg && (
+              <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={() => !notifySending && setNotifyDlg(null)}>
+                <div className="bg-white rounded-2xl p-6 w-full max-w-xl max-h-[90vh] overflow-y-auto space-y-4" onClick={e => e.stopPropagation()}>
+                  <h3 className="font-bold text-stone-900 text-lg">Рассылка о мероприятии «{notifyDlg.title}»</h3>
+                  <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
+                    Письмо получат <b>все подтвердившие email пользователи сайта ({notifyDlg.recipients.length})</b>, а не только участники этой игры.
+                    Сначала отправьте тест себе.
+                  </p>
+                  <div>
+                    <label className="block text-sm font-medium text-stone-700 mb-1">Тема письма</label>
+                    <input value={notifyForm.subject} onChange={e => setNotifyForm({ ...notifyForm, subject: e.target.value })} className={input} maxLength={200} />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-stone-700 mb-1">Текст письма</label>
+                    <textarea value={notifyForm.message} onChange={e => setNotifyForm({ ...notifyForm, message: e.target.value })} rows={9} className={input} maxLength={5000} />
+                    <p className="text-xs text-stone-400 mt-1">Пустая строка — новый абзац. Кнопка «Зарегистрироваться» со ссылкой на игру добавится под текстом.</p>
+                  </div>
+                  <details className="text-sm text-stone-600">
+                    <summary className="cursor-pointer">Получатели ({notifyDlg.recipients.length})</summary>
+                    <ul className="mt-2 max-h-40 overflow-y-auto text-xs text-stone-500 space-y-0.5">
+                      {notifyDlg.recipients.map(r => <li key={r.email}>{r.full_name} — {r.email}</li>)}
+                    </ul>
+                  </details>
+                  <div className="flex flex-wrap gap-2 justify-end">
+                    <button type="button" disabled={notifySending} onClick={() => setNotifyDlg(null)}
+                      className="px-4 py-2 rounded-xl border border-stone-300 text-stone-600 hover:bg-stone-50 text-sm">Отмена</button>
+                    <button type="button" disabled={notifySending || !notifyForm.subject.trim() || !notifyForm.message.trim()} onClick={() => sendNotify(true)}
+                      className="px-4 py-2 rounded-xl border border-stone-300 text-stone-700 hover:border-red-400 text-sm">Отправить тест себе</button>
+                    <button type="button" disabled={notifySending || !notifyForm.subject.trim() || !notifyForm.message.trim()} onClick={() => sendNotify(false)}
+                      className={btn}>{notifySending ? 'Отправка…' : `Отправить ${notifyDlg.recipients.length} получателям`}</button>
+                  </div>
+                </div>
+              </div>
+            )}
             {rescheduleMsg && <p className="text-sm text-green-700 mb-3 font-medium">{rescheduleMsg}</p>}
             <div className="space-y-3">
               {events.map(ev => (
@@ -507,9 +569,9 @@ export default function AdminPage() {
                         className="text-sm border border-stone-300 px-3 py-1.5 rounded-xl hover:border-red-400 text-stone-700 transition-colors">
                         Перенести
                       </button>
-                      <button onClick={() => handleNotifyNew(ev.id)}
+                      <button onClick={() => openNotifyDialog(ev)}
                         className="text-sm border border-stone-300 px-3 py-1.5 rounded-xl hover:border-red-400 text-stone-700 transition-colors">
-                        Оповестить всех
+                        Рассылка…
                       </button>
                       <button onClick={() => {
                         setEditingEventId(ev.id)
@@ -620,6 +682,19 @@ export default function AdminPage() {
               <div>
                 <label className="block text-sm font-medium text-stone-700 mb-1">Текст</label>
                 <textarea value={postForm.content} onChange={e => setPostForm({ ...postForm, content: e.target.value })} rows={5} className={input} required />
+                <div className="mt-2"><MarkdownHint /></div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-stone-700 mb-1">Фото (необязательно)</label>
+                <div className="flex items-center gap-3">
+                  {postImage && <img src={URL.createObjectURL(postImage)} alt="" className="h-16 w-24 object-cover rounded-xl border border-stone-200" />}
+                  <label className="cursor-pointer text-sm text-red-700 hover:text-red-800 font-medium">
+                    {postImage ? '🔄 Выбрать другое' : '📷 Добавить фото'}
+                    <input type="file" accept="image/jpeg,image/png,image/gif,image/webp" className="hidden"
+                      onChange={e => { setPostImage(e.target.files?.[0] || null); e.target.value = '' }} />
+                  </label>
+                  {postImage && <button type="button" onClick={() => setPostImage(null)} className="text-sm text-stone-400 hover:text-stone-600">Убрать</button>}
+                </div>
               </div>
               <label className="flex items-center gap-2 text-sm text-stone-700 cursor-pointer">
                 <input type="checkbox" checked={postForm.is_published} onChange={e => setPostForm({ ...postForm, is_published: e.target.checked })} />
@@ -672,6 +747,7 @@ export default function AdminPage() {
                         className={input} placeholder="Заголовок" required />
                       <textarea value={editPostForm.content} onChange={e => setEditPostForm({ ...editPostForm, content: e.target.value })}
                         rows={5} className={input} placeholder="Текст (поддерживается Markdown)" required />
+                      <MarkdownHint />
                       <div className="flex gap-2">
                         <button type="submit" className={btn}>Сохранить</button>
                         <button type="button" onClick={() => setEditingPostId(null)}

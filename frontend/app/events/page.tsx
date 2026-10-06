@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import api from '@/lib/api'
+import { formatEventRange, formatDeadline, PARTICIPATION_FEE } from '@/lib/format'
 
 interface Event {
   id: string; title: string; description: string; city: string | null
@@ -39,11 +40,12 @@ export default function EventsPage() {
         {ev.city && <p className="text-sm text-stone-400 mb-3">📍 {ev.city}</p>}
         <p className="text-stone-500 text-sm mb-4 line-clamp-2">{ev.description}</p>
         <div className="text-sm text-stone-500 space-y-1">
-          <p>📅 {new Date(ev.starts_at).toLocaleDateString('ru-RU')} — {new Date(ev.ends_at).toLocaleDateString('ru-RU')}</p>
+          <p>📅 {formatEventRange(ev.starts_at, ev.ends_at)}</p>
           {ev.status !== 'finished' && (
-            <p>⏰ Регистрация до: {new Date(ev.reg_deadline).toLocaleDateString('ru-RU')}</p>
+            <p>⏰ Регистрация закрывается {formatDeadline(ev.reg_deadline)}</p>
           )}
           <p>👥 {ev.min_team_size}–{ev.max_team_size} человек</p>
+          <p>💰 Стоимость участия — {PARTICIPATION_FEE}</p>
         </div>
         <span className={`inline-block mt-4 text-xs px-3 py-1 rounded-full font-medium ${st.cls}`}>
           {st.label}

@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { formatDeadline, PARTICIPATION_FEE } from '@/lib/format'
 import api from '@/lib/api'
 import { useAuth } from '@/context/AuthContext'
 
@@ -206,9 +207,10 @@ export default function EventDetailPage() {
           <span>📅 {new Date(event.starts_at).toLocaleString('ru-RU', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })} — {new Date(event.ends_at).toLocaleString('ru-RU', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}</span>
           {event.city && <span>📍 {event.city}</span>}
           {event.status !== 'finished' && (
-            <span>⏰ Регистрация до {new Date(event.reg_deadline).toLocaleString('ru-RU', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}</span>
+            <span>⏰ Регистрация закрывается {formatDeadline(event.reg_deadline)}</span>
           )}
           <span>👥 {event.min_team_size}–{event.max_team_size} человек</span>
+          <span>💰 Стоимость участия — {PARTICIPATION_FEE}</span>
         </div>
       </div>
 

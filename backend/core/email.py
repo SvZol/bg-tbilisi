@@ -68,31 +68,46 @@ def send_verification_email(to: str, token: str):
     send_email(to, "Подтвердите ваш email — ТБИссектриса", html)
 
 
-def send_new_event_email(to: str, title: str, starts_at, reg_deadline, event_id: str):
-    starts = starts_at.strftime('%d.%m.%Y') if hasattr(starts_at, 'strftime') else str(starts_at)[:10]
-    deadline = reg_deadline.strftime('%d.%m.%Y') if hasattr(reg_deadline, 'strftime') else str(reg_deadline)[:10]
+def _fmt_date(d) -> str:
+    return d.strftime('%d.%m.%Y') if hasattr(d, 'strftime') else str(d)[:10]
+
+
+def default_new_event_message(title: str, starts_at, reg_deadline) -> tuple[str, str]:
+    """Тема и текст рассылки о новом мероприятии по умолчанию (админ может их отредактировать)."""
+    subject = "Скоро игра! — ТБИссектриса"
+    message = (
+        f"Привет! У нас новое мероприятие — «{title}» 🎉\n\n"
+        f"📅 Когда: {_fmt_date(starts_at)}\n"
+        f"⏰ Успей зарегистрировать команду до: {_fmt_date(reg_deadline)}\n\n"
+        "До встречи на улицах Тбилиси!\nКоманда ТБИссектрисы"
+    )
+    return subject, message
+
+
+def send_event_announcement(to: str, subject: str, message: str, event_id: str):
+    """Рассылка с произвольным текстом (обычный текст, HTML экранируется) и кнопкой на мероприятие."""
     link = f"{FRONTEND_URL}/events/{event_id}"
+    paragraphs = "".join(
+        f'<p style="color:#44403c;">{escape(par).replace(chr(10), "<br>")}</p>'
+        for par in message.split("\n\n") if par.strip()
+    )
     html = f"""
     <div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;padding:24px;">
       <img src="{FRONTEND_URL}/logo-text.PNG" alt="ТБИссектриса" style="height:40px;margin-bottom:20px;" />
-      <h2 style="color:#dc2626;">Скоро игра!</h2>
-      <p style="color:#44403c;">Привет! У нас новое мероприятие — <strong>«{escape(title)}»</strong> 🎉</p>
-      <p style="color:#44403c;">📅 <strong>Когда:</strong> {starts}<br>
-      ⏰ <strong>Успей зарегистрировать команду до:</strong> {deadline}</p>
+      {paragraphs}
       <a href="{link}"
          style="display:inline-block;background:#dc2626;color:#fff;padding:12px 28px;
                 border-radius:10px;text-decoration:none;font-weight:bold;margin:16px 0;">
         Зарегистрироваться →
       </a>
-      <p style="color:#a8a29e;font-size:13px;">До встречи на улицах Тбилиси!<br>Команда ТБИссектрисы</p>
     </div>
     """
-    send_email(to, "Скоро игра! — ТБИссектриса", html)
+    send_email(to, subject, html)
 
 
 def send_reschedule_email(to: str, title: str, team_name: str, starts_at, reg_deadline):
-    starts = starts_at.strftime('%d.%m.%Y') if hasattr(starts_at, 'strftime') else str(starts_at)[:10]
-    deadline = reg_deadline.strftime('%d.%m.%Y') if hasattr(reg_deadline, 'strftime') else str(reg_deadline)[:10]
+    starts = _fmt_date(starts_at)
+    deadline = _fmt_date(reg_deadline)
     html = f"""
     <div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;padding:24px;">
       <img src="{FRONTEND_URL}/logo-text.PNG" alt="ТБИссектриса" style="height:40px;margin-bottom:20px;" />

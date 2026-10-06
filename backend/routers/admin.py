@@ -160,28 +160,53 @@ def update_reg_deadline(
     return {"ok": True, "reg_deadline": event.reg_deadline.isoformat()}
 
 
+def _newsletter_recipients(db: Session):
+    from models.user import User
+    return db.query(User).filter(User.is_verified == True).order_by(User.email).all()
+
+
+@router.get("/events/{event_id}/notify-new/preview")
+def notify_new_preview(event_id: UUID, db: Session = Depends(get_db), admin=Depends(get_current_admin)):
+    """Что и кому уйдёт при рассылке: тема, текст по умолчанию и список получателей."""
+    from core.email import default_new_event_message
+    event = db.query(Event).filter(Event.id == event_id).first()
+    if not event:
+        raise HTTPException(404, "Мероприятие не найдено")
+    subject, message = default_new_event_message(event.title, event.starts_at, event.reg_deadline)
+    users = _newsletter_recipients(db)
+    return {
+        "subject": subject,
+        "message": message,
+        "recipients": [{"email": u.email, "full_name": u.full_name} for u in users],
+    }
+
+
+class NotifyNew(BaseModel):
+    subject: str = Field(min_length=1, max_length=200)
+    message: str = Field(min_length=1, max_length=5000)
+    test_only: bool = False  # True — отправить только самому администратору
+
+
 @router.post("/events/{event_id}/notify-new")
 def notify_new_event(
     event_id: UUID,
+    data: NotifyNew,
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     admin=Depends(get_current_admin)
 ):
-    from models.user import User
-    from core.email import send_new_event_email
+    from core.email import send_event_announcement
 
     event = db.query(Event).filter(Event.id == event_id).first()
     if not event:
         raise HTTPException(404, "Мероприятие не найдено")
 
-    users = db.query(User).filter(User.is_verified == True).all()
-    for u in users:
-        background_tasks.add_task(
-            _send_safe, send_new_event_email,
-            u.email, event.title, event.starts_at, event.reg_deadline, str(event_id)
-        )
+    emails = [admin.email] if data.test_only else [u.email for u in _newsletter_recipients(db)]
+    for email in emails:
+        background_tasks.add_task(_send_safe, send_event_announcement, email, data.subject, data.message, str(event_id))
+    log.info("Рассылка о мероприятии %s: %d получателей (test=%s, admin=%s)", event_id, len(emails), data.test_only, admin.email)
 
-    return {"ok": True, "notified": len(users)}
+    return {"ok": True, "notified": len(emails)}
 
 
 @router.post("/events/{event_id}/upload-results-pdf")

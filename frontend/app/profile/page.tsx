@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import api from '@/lib/api'
 import { useAuth } from '@/context/AuthContext'
+import PasswordInput from '@/components/PasswordInput'
 
 const input = "w-full border border-stone-300 rounded-xl px-3 py-2 text-stone-900 focus:outline-none focus:ring-2 focus:ring-red-400 bg-white"
 const btn = "bg-red-600 text-white px-5 py-2 rounded-xl hover:bg-red-700 font-medium transition-colors disabled:opacity-50"
@@ -97,19 +98,19 @@ export default function ProfilePage() {
         <form onSubmit={handlePasswordChange} className="space-y-3">
           <div>
             <label className="block text-sm font-medium text-stone-700 mb-1">Текущий пароль</label>
-            <input type="password" value={pwForm.current_password}
+            <PasswordInput value={pwForm.current_password}
               onChange={e => setPwForm({ ...pwForm, current_password: e.target.value })}
               className={input} required />
           </div>
           <div>
             <label className="block text-sm font-medium text-stone-700 mb-1">Новый пароль</label>
-            <input type="password" value={pwForm.new_password}
+            <PasswordInput value={pwForm.new_password}
               onChange={e => setPwForm({ ...pwForm, new_password: e.target.value })}
               className={input} required minLength={8} />
           </div>
           <div>
             <label className="block text-sm font-medium text-stone-700 mb-1">Повторите новый пароль</label>
-            <input type="password" value={pwForm.confirm}
+            <PasswordInput value={pwForm.confirm}
               onChange={e => setPwForm({ ...pwForm, confirm: e.target.value })}
               className={input} required />
           </div>

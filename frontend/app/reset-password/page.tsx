@@ -3,6 +3,7 @@ import { Suspense, useState } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import api from '@/lib/api'
+import PasswordInput from '@/components/PasswordInput'
 
 const input = "w-full border border-stone-300 rounded-xl px-3 py-2.5 text-stone-900 focus:outline-none focus:ring-2 focus:ring-red-400 bg-white"
 
@@ -58,13 +59,13 @@ function ResetPasswordForm() {
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-stone-700 mb-1">Новый пароль</label>
-            <input type="password" value={password}
+            <PasswordInput value={password}
               onChange={e => setPassword(e.target.value)}
               className={input} required minLength={8} />
           </div>
           <div>
             <label className="block text-sm font-medium text-stone-700 mb-1">Повторите пароль</label>
-            <input type="password" value={password2}
+            <PasswordInput value={password2}
               onChange={e => setPassword2(e.target.value)}
               className={input} required minLength={8} />
           </div>
