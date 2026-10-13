@@ -1,0 +1,136 @@
+'use client'
+
+type Step = {
+  title: string
+  tab: string
+  tabLabel: string
+  where: string
+  what: string
+  note?: string
+  danger?: string
+}
+
+const BEFORE: Step[] = [
+  {
+    title: 'Создать игру',
+    tab: 'events', tabLabel: 'Мероприятия',
+    where: 'Мероприятия → блок «Новое мероприятие» → кнопка «Создать мероприятие»',
+    what: 'Игра сразу появляется на сайте, регистрация открыта. Письма при этом никому не уходят. Регистрация закроется сама, когда пройдёт дедлайн.',
+  },
+  {
+    title: 'Позвать людей',
+    tab: 'events', tabLabel: 'Мероприятия',
+    where: 'Мероприятия → у нужной игры кнопка «Рассылка…»',
+    what: 'Откроется окно с текстом письма и списком получателей. Текст можно поправить. Сначала нажмите «Отправить тест себе», проверьте письмо, потом «Отправить … получателям».',
+    danger: 'Письмо получат ВСЕ подтвердившие email пользователи сайта, а не только участники игры. Отменить рассылку после отправки нельзя, повторно не нажимайте.',
+  },
+  {
+    title: 'Если игра переносится',
+    tab: 'events', tabLabel: 'Мероприятия',
+    where: 'Мероприятия → у игры кнопки «Перенести» или «Дедлайн»',
+    what: '«Перенести» меняет дату и время игры и дедлайн. «Дедлайн» меняет только срок регистрации.',
+    danger: '«Перенести» отправляет письмо о переносе всем участникам зарегистрированных команд. «Дедлайн» никому ничего не отправляет.',
+  },
+  {
+    title: 'Загрузить раздатки (PDF)',
+    tab: 'results', tabLabel: 'Результаты',
+    where: 'Результаты → выбрать игру → блок «Раздатки (PDF)» → «+ Добавить PDF»',
+    what: 'Файл сразу виден всем на странице игры.',
+  },
+  {
+    title: 'Прикрепить карту',
+    tab: 'results', tabLabel: 'Результаты',
+    where: 'Результаты → выбрать игру → блок «Карта маршрута»',
+    what: 'Вставьте ссылку на карту из Google «Мои карты» и нажмите «Сохранить». Подробная инструкция есть в самом блоке: «Как сделать карту и вставить ссылку».',
+    note: 'Карта сразу видна всем на странице игры.',
+  },
+  {
+    title: 'Загрузить вопросы (КП) и ответы',
+    tab: 'questions', tabLabel: 'Вопросы',
+    where: 'Вопросы → выбрать игру → «Шаг 1 — КП и ответы» → «Выбрать файл» (файл «все КП.xlsx»)',
+    what: 'Вопросы появятся в админке. Участники их не видят, пока вы не нажмёте «Опубликовать результаты» (шаг 9). Файл можно загружать повторно: вопросы обновятся.',
+  },
+]
+
+const AFTER: Step[] = [
+  {
+    title: 'Проверить команды',
+    tab: 'teams', tabLabel: 'Команды',
+    where: 'Команды → выбрать игру',
+    what: 'Названия команд в файле результатов должны совпадать с названиями здесь. Если не совпадут, система попросит сопоставить их при загрузке.',
+  },
+  {
+    title: 'Загрузить результаты',
+    tab: 'questions', tabLabel: 'Вопросы',
+    where: 'Вопросы → выбрать игру → «Шаг 2 — Результаты команд» → «Загрузить файл» (файл «проверка.xlsx»)',
+    what: 'Загружаются баллы по КП и задачам и штрафы. Система сама считает итог и сверяет его со строкой «Сумма» в вашем файле. Если появится сообщение «итоги не сходятся», проверьте файл. Файл можно загружать повторно: старые результаты заменятся.',
+    note: 'Таблицу итогов можно посмотреть во вкладке «Результаты». Участники её ещё не видят.',
+  },
+  {
+    title: 'Опубликовать результаты',
+    tab: 'questions', tabLabel: 'Вопросы',
+    where: 'Вопросы → блок «Публикация результатов» → кнопка «✓ Опубликовать результаты»',
+    what: 'Нажимайте только когда результаты загружены (шаг 8) и проверены. Откроются вопросы, правильные ответы и итоговая таблица. Каждому участнику команд придёт письмо с местом и баллами.',
+    danger: 'Письма уходят только при первой публикации. Если нажать «Скрыть», а потом опубликовать снова, письма уйдут ещё раз.',
+  },
+  {
+    title: 'Завершить игру',
+    tab: 'events', tabLabel: 'Мероприятия',
+    where: 'Мероприятия → у игры выпадающий список статуса → «Завершено»',
+    what: 'Игра переезжает в «Архив» на странице мероприятий.',
+  },
+]
+
+function StepCard({ n, step, go }: { n: number; step: Step; go: (tab: string) => void }) {
+  return (
+    <div className="bg-white border border-stone-200 rounded-2xl p-4 flex gap-4">
+      <div className="shrink-0 w-8 h-8 rounded-full bg-red-600 text-white font-bold flex items-center justify-center text-sm">{n}</div>
+      <div className="flex-1 min-w-0 space-y-1.5">
+        <div className="flex items-start justify-between gap-3 flex-wrap">
+          <p className="font-bold text-stone-900">{step.title}</p>
+          <button onClick={() => go(step.tab)}
+            className="text-xs border border-stone-300 px-3 py-1 rounded-lg text-stone-700 hover:border-red-400 whitespace-nowrap">
+            Перейти: {step.tabLabel} →
+          </button>
+        </div>
+        <p className="text-sm text-stone-700"><span className="font-medium">Где:</span> {step.where}</p>
+        <p className="text-sm text-stone-600">{step.what}</p>
+        {step.note && <p className="text-sm text-stone-500">{step.note}</p>}
+        {step.danger && (
+          <p className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">⚠ {step.danger}</p>
+        )}
+      </div>
+    </div>
+  )
+}
+
+/** Памятка для администратора: что и в каком порядке делать, на какие кнопки нажимать. */
+export default function AdminGuide({ go }: { go: (tab: string) => void }) {
+  return (
+    <div className="space-y-6">
+      <p className="text-sm text-stone-600">
+        Порядок работы с игрой от создания до публикации результатов. У каждого шага указано, на какой вкладке он делается и что произойдёт.
+        Кнопки, которые отправляют письма, отмечены значком ⚠.
+      </p>
+
+      <section className="space-y-3">
+        <h2 className="font-bold text-stone-900 text-lg">До игры</h2>
+        {BEFORE.map((s, i) => <StepCard key={s.title} n={i + 1} step={s} go={go} />)}
+      </section>
+
+      <section className="space-y-3">
+        <h2 className="font-bold text-stone-900 text-lg">После игры</h2>
+        {AFTER.map((s, i) => <StepCard key={s.title} n={BEFORE.length + i + 1} step={s} go={go} />)}
+      </section>
+
+      <section className="bg-stone-50 border border-stone-200 rounded-2xl p-4 space-y-2">
+        <h2 className="font-bold text-stone-900">Что означают статусы игры</h2>
+        <ul className="text-sm text-stone-600 space-y-1 list-disc pl-5">
+          <li><b>Открыто</b> — идёт регистрация. Когда пройдёт дедлайн, сайт сам покажет «Регистрация закрыта», переключать вручную не нужно.</li>
+          <li><b>Закрыто</b> — регистрация закрыта вручную, игра в ближайших.</li>
+          <li><b>Завершено</b> — игра прошла, она показывается в архиве.</li>
+        </ul>
+      </section>
+    </div>
+  )
+}

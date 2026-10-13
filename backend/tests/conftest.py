@@ -3,6 +3,7 @@ import os
 import sys
 import tempfile
 import uuid
+from datetime import timedelta
 
 _workdir = tempfile.mkdtemp()
 os.chdir(_workdir)  # uploads/ создаётся относительно текущей папки
@@ -31,6 +32,7 @@ sqltypes.Uuid.bind_processor = _bind
 
 import core.email as email_module
 import models  # noqa: F401
+from core.registration import now_tbilisi
 from core.security import hash_password
 from database import Base, SessionLocal, engine
 from models.user import User
@@ -96,9 +98,11 @@ def user_h(client, db):
 
 @pytest.fixture
 def event_id(client, admin_h):
+    # даты считаем от «сейчас», иначе тесты сломаются, когда дедлайн окажется в прошлом
+    start = now_tbilisi() + timedelta(days=30)
     r = client.post("/admin/events", headers=admin_h, json={
-        "title": "Игра", "starts_at": "2026-10-11T12:00:00", "ends_at": "2026-10-11T16:00:00",
-        "reg_deadline": "2026-10-09T23:59:00"})
+        "title": "Игра", "starts_at": start.isoformat(), "ends_at": (start + timedelta(hours=4)).isoformat(),
+        "reg_deadline": (start - timedelta(days=2)).isoformat()})
     assert r.status_code == 200
     client.patch(f"/admin/events/{r.json()['id']}/status?status=open", headers=admin_h)
     return r.json()["id"]

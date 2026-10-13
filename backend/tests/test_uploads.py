@@ -5,14 +5,14 @@ PDF = b"%PDF-1.4\n" + b"0" * 32
 
 
 def upload_photo(client, headers, event_id, name, content, ctype="image/png"):
-    return client.post(f"/admin/photos/{event_id}", headers=headers, files={"file": (name, content, ctype)})
+    return client.post("/admin/pages/rules/image", headers=headers, files={"file": (name, content, ctype)})
 
 
 def test_valid_image_saved_under_random_name(client, admin_h, event_id):
     r = upload_photo(client, admin_h, event_id, "photo.png", PNG)
     assert r.status_code == 200
     name = r.json()["filename"]
-    assert name != "photo.png" and os.path.isfile(os.path.join("uploads", name))
+    assert name != "photo.png" and os.path.isfile(os.path.join("uploads", "pages", name))
 
 
 def test_html_and_svg_rejected(client, admin_h, event_id):

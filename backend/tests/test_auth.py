@@ -56,16 +56,6 @@ def test_token_of_deleted_user_rejected(client, db, user_h):
     assert client.get("/auth/me", headers=user_h).status_code == 401
 
 
-def test_user_search_is_admin_only(client, user_h, admin_h):
-    assert client.get("/auth/users/search?q=abc", headers=user_h).status_code == 403
-    assert client.get("/auth/users/search?q=abc", headers=admin_h).status_code == 200
-
-
-def test_user_search_treats_wildcards_literally(client, db, admin_h):
-    make_user(db, "someone@x.com")
-    assert client.get("/auth/users/search?q=%25%25%25", headers=admin_h).json() == []
-
-
 def test_password_reset_flow(client, db, outbox):
     make_user(db, "r@x.com")
     client.post("/auth/forgot-password?email=R@x.com")

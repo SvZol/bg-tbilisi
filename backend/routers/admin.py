@@ -2,10 +2,11 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Backgro
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 from database import get_db
-from models.content import Post, Page, EventResult, EventPhoto
+from models.content import Post, Page
 from models.event import Event
 from models.team import Team, TeamMember
 from core.security import get_current_admin
+from core.scoring import team_scores, rank_teams
 from core.uploads import save_upload, remove_upload, read_limited, UPLOAD_DIR, MAX_EXCEL_BYTES
 from pydantic import BaseModel, Field, model_validator
 from uuid import UUID
@@ -16,7 +17,8 @@ import os
 import secrets
 import string
 
-from routers.events import EventOut
+from routers.events import EventOut, list_event_pdfs
+from routers.teams import downgrade_child_if_small
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 log = logging.getLogger(__name__)
@@ -209,23 +211,6 @@ def notify_new_event(
     return {"ok": True, "notified": len(emails)}
 
 
-@router.post("/events/{event_id}/upload-results-pdf")
-async def upload_results_pdf(
-    event_id: UUID,
-    file: UploadFile = File(...),
-    db: Session = Depends(get_db),
-    admin=Depends(get_current_admin),
-):
-    event = db.query(Event).filter(Event.id == event_id).first()
-    if not event:
-        raise HTTPException(404, "Мероприятие не найдено")
-    filename = await save_upload(file, "pdfs", kind="pdf")
-    remove_upload(event.results_pdf, "pdfs")
-    event.results_pdf = filename
-    db.commit()
-    return {"ok": True, "filename": filename}
-
-
 @router.delete("/events/{event_id}/results-pdf")
 def delete_results_pdf(event_id: UUID, db: Session = Depends(get_db), admin=Depends(get_current_admin)):
     event = db.query(Event).filter(Event.id == event_id).first()
@@ -242,15 +227,7 @@ def delete_results_pdf(event_id: UUID, db: Session = Depends(get_db), admin=Depe
 
 @router.get("/events/{event_id}/pdfs")
 def get_event_pdfs_admin(event_id: UUID, db: Session = Depends(get_db), admin=Depends(get_current_admin)):
-    from models.content import EventPdf
-    event = db.query(Event).filter(Event.id == event_id).first()
-    result = []
-    if event and event.results_pdf:
-        result.append({"id": "legacy", "filename": event.results_pdf, "display_name": "Раздатка (старый формат)"})
-    pdfs = db.query(EventPdf).filter(EventPdf.event_id == event_id).order_by(EventPdf.uploaded_at).all()
-    for p in pdfs:
-        result.append({"id": str(p.id), "filename": p.filename, "display_name": p.display_name or p.filename})
-    return result
+    return list_event_pdfs(db, event_id, legacy_name="Раздатка (старый формат)")
 
 @router.post("/events/{event_id}/pdfs")
 async def upload_event_pdf_multi(
@@ -358,77 +335,6 @@ def delete_post(post_id: UUID, db: Session = Depends(get_db), admin=Depends(get_
     db.commit()
     return {"ok": True}
 
-# --- Страницы ---
-
-class PageCreate(BaseModel):
-    slug: str = Field(min_length=1, max_length=100, pattern=r"^[a-z0-9-]+$")
-    title: str = Field(min_length=1, max_length=200)
-    content: str = Field(max_length=100000)
-    is_published: bool = False
-
-@router.post("/pages")
-def create_page(data: PageCreate, db: Session = Depends(get_db), admin=Depends(get_current_admin)):
-    page = Page(**data.model_dump())
-    db.add(page)
-    db.commit()
-    db.refresh(page)
-    return page
-
-@router.patch("/pages/{page_id}")
-def update_page(page_id: UUID, data: PageCreate, db: Session = Depends(get_db), admin=Depends(get_current_admin)):
-    page = db.query(Page).filter(Page.id == page_id).first()
-    if not page:
-        raise HTTPException(status_code=404, detail="Не найдено")
-    for key, value in data.model_dump().items():
-        setattr(page, key, value)
-    page.updated_at = datetime.utcnow()
-    db.commit()
-    return page
-
-# --- Результаты ---
-
-class ResultCreate(BaseModel):
-    event_id: UUID
-    team_id: UUID
-    rank: Optional[str] = None
-    score: Optional[str] = None
-    notes: Optional[str] = None
-
-@router.post("/results")
-def create_result(data: ResultCreate, db: Session = Depends(get_db), admin=Depends(get_current_admin)):
-    result = EventResult(**data.model_dump())
-    db.add(result)
-    db.commit()
-    db.refresh(result)
-    return result
-
-@router.get("/results/{event_id}")
-def get_results(event_id: UUID, db: Session = Depends(get_db)):
-    return db.query(EventResult).filter(EventResult.event_id == event_id).all()
-
-# --- Фото ---
-
-@router.post("/photos/{event_id}")
-async def upload_photo(
-    event_id: UUID,
-    caption: Optional[str] = None,
-    file: UploadFile = File(...),
-    db: Session = Depends(get_db),
-    admin=Depends(get_current_admin)
-):
-    if not db.query(Event.id).filter(Event.id == event_id).first():
-        raise HTTPException(404, "Мероприятие не найдено")
-    filename = await save_upload(file)
-    photo = EventPhoto(event_id=event_id, filename=filename, caption=caption)
-    db.add(photo)
-    db.commit()
-    return {"filename": filename}
-
-@router.get("/photos/{event_id}")
-def get_photos(event_id: UUID, db: Session = Depends(get_db)):
-    return db.query(EventPhoto).filter(EventPhoto.event_id == event_id).all()
-
-
 # --- Команды ---
 
 @router.get("/teams/{event_id}")
@@ -509,12 +415,9 @@ def delete_member(member_id: UUID, db: Session = Depends(get_db), admin=Depends(
     team_id = member.team_id
     db.delete(member)
     db.flush()
-    # Если остался 1 участник — автоматически переключаем на взрослый зачёт
     team = db.query(Team).filter(Team.id == team_id).first()
     if team:
-        remaining = db.query(TeamMember).filter(TeamMember.team_id == team_id).count()
-        if remaining < 2 and team.category == "child":
-            team.category = "adult"
+        downgrade_child_if_small(team, db)
     db.commit()
     return {"ok": True}
 
@@ -554,12 +457,6 @@ def create_question(event_id: UUID, data: QuestionCreate, db: Session = Depends(
     db.commit()
     db.refresh(q)
     return _q_out(q)
-
-@router.get("/events/{event_id}/questions")
-def get_questions_admin(event_id: UUID, db: Session = Depends(get_db), admin=Depends(get_current_admin)):
-    from models.content import EventQuestion
-    qs = db.query(EventQuestion).filter(EventQuestion.event_id == event_id).order_by(EventQuestion.number).all()
-    return [_q_out(q) for q in qs]
 
 @router.patch("/questions/{question_id}")
 def update_question(question_id: UUID, data: QuestionUpdate, db: Session = Depends(get_db), admin=Depends(get_current_admin)):
@@ -631,7 +528,7 @@ def get_question_results_admin(event_id: UUID, db: Session = Depends(get_db), ad
     result_map = {f"{r.question_id}|{r.team_id}": r.points_earned for r in results}
     return {
         "questions": [_q_out(q) for q in qs],
-        "teams": [{"id": str(t.id), "name": t.name, "category": t.category or "adult"} for t in teams],
+        "teams": [{"id": str(t.id), "name": t.name, "category": t.category or "adult", "penalty": t.penalty or 0} for t in teams],
         "results": result_map,
     }
 
@@ -758,6 +655,24 @@ async def generate_results_template(
 
         # Пустая строка между КП
         ws.append([None])
+
+    # Итоги: баллы считаются формулами, штраф вносится вручную (отрицательным числом)
+    first, last = 5, ws.max_row
+    ws.append([None])
+    footer_start = ws.max_row + 1
+    bold = Font(bold=True)
+    for label, kind in (("КП", "задание КП"), ("задачи", "задача"), ("штраф", None), ("Сумма", "sum")):
+        ws.append([None, None, label] + [None] * n_teams)
+        r = ws.max_row
+        ws.cell(r, 3).font = bold
+        for c in range(4, 4 + n_teams):
+            col = get_column_letter(c)
+            if kind == "sum":
+                ws.cell(r, c).value = f"=SUM({col}{footer_start}:{col}{r - 1})"
+                ws.cell(r, c).font = bold
+            elif kind:
+                ws.cell(r, c).value = f'=SUMIF($B${first}:$B${last},"{kind}",{col}${first}:{col}${last})'
+            ws.cell(r, c).alignment = Alignment(horizontal="center")
 
     buf = io.BytesIO()
     wb.save(buf)
@@ -1208,8 +1123,18 @@ async def import_results_excel(
     unmatched: list[str] = []
     created = 0
     current_kp: Optional[int] = None
+    penalty_row = None  # строка «штраф»
+    sum_row = None      # строка «Сумма» — для сверки с нашим подсчётом
 
     for row in rows:
+        label = next((str(c).strip().lower() for c in row[:3] if isinstance(c, str) and c.strip()), "")
+        if label == "штраф":
+            penalty_row = row
+            continue
+        if label == "сумма":
+            sum_row = row
+            continue
+
         col0 = row[0]
         col1 = str(row[1]).strip() if row[1] else ""
 
@@ -1273,11 +1198,40 @@ async def import_results_excel(
             ))
             created += 1
 
+    # Штрафы: всегда вычитаются, поэтому «3» и «-3» дают одинаковый результат
+    def _cell_int(row, idx):
+        if row is None or idx >= len(row) or row[idx] is None:
+            return None
+        try:
+            return int(float(row[idx]))
+        except (TypeError, ValueError):
+            return None
+
+    for db_team, ans_col, pts_col in team_entries:
+        if db_team is None:
+            continue
+        value = _cell_int(penalty_row, pts_col if pts_col is not None else ans_col)
+        db_team.penalty = -abs(value) if value else 0
+    db.flush()
+
+    # Сверяем итоги из файла со своим подсчётом (баллы за вопросы + штраф)
+    warnings: list[str] = []
+    if sum_row is not None:
+        scores = team_scores(db, event_id)
+        for db_team, ans_col, pts_col in team_entries:
+            if db_team is None:
+                continue
+            file_total = _cell_int(sum_row, pts_col if pts_col is not None else ans_col)
+            ours = scores[str(db_team.id)]["total"]
+            if file_total is not None and file_total != ours:
+                warnings.append(f"{db_team.name}: в файле {file_total}, на сайте {ours}")
+
     # Собираем имена ДО commit (после commit объекты становятся expired)
     teams_found = [str(e[0].name) for e in team_entries if e[0] is not None]
 
     db.commit()
     return {
+        "warnings": warnings,
         "created": int(created),
         "unmatched_teams": list(unmatched),
         "teams_found": teams_found,
@@ -1314,7 +1268,7 @@ def get_questions_public(event_id: UUID, db: Session = Depends(get_db)):
     result_map = {f"{r.question_id}|{r.team_id}": r.points_earned for r in results}
     return {
         "questions": [_q_out(q) for q in qs],
-        "teams": [{"id": str(t.id), "name": t.name, "category": t.category or "adult"} for t in teams],
+        "teams": [{"id": str(t.id), "name": t.name, "category": t.category or "adult", "penalty": t.penalty or 0} for t in teams],
         "results": result_map,
     }
 
@@ -1369,38 +1323,23 @@ def upsert_page(slug: str, data: PageUpsert, db: Session = Depends(get_db), admi
 
 @router.get("/events/{event_id}/scoreboard")
 def get_scoreboard(event_id: UUID, db: Session = Depends(get_db), admin=Depends(get_current_admin)):
-    from models.content import TeamQuestionResult, EventQuestion
-    from models.team import Team
-
+    scores = team_scores(db, event_id)
     teams = db.query(Team).filter(Team.event_id == event_id).all()
-    results = (
-        db.query(TeamQuestionResult)
-        .join(EventQuestion)
-        .filter(EventQuestion.event_id == event_id)
-        .all()
-    )
 
-    score_map: dict = {}
-    for r in results:
-        key = str(r.team_id)
-        score_map[key] = score_map.get(key, 0) + (r.points_earned or 0)
-
-    rows = []
-    for team in teams:
-        rows.append({
-            "id": str(team.id),
-            "name": team.name,
-            "category": team.category or "adult",
-            "score": score_map.get(str(team.id), 0),
-        })
-
-    adult = sorted([r for r in rows if r["category"] != "child"], key=lambda x: -x["score"])
-    child = sorted([r for r in rows if r["category"] == "child"], key=lambda x: -x["score"])
-
-    for i, r in enumerate(adult): r["rank"] = i + 1
-    for i, r in enumerate(child): r["rank"] = i + 1
-
-    return {"adult": adult, "child": child}
+    result = {}
+    for key, cat_teams in (
+        ("adult", [t for t in teams if (t.category or "adult") != "child"]),
+        ("child", [t for t in teams if t.category == "child"]),
+    ):
+        ranks = rank_teams(cat_teams, scores)
+        rows = [{
+            "id": str(t.id), "name": t.name, "category": t.category or "adult",
+            "rank": ranks[str(t.id)], "score": scores[str(t.id)]["total"],
+            "kp": scores[str(t.id)]["kp"], "tasks": scores[str(t.id)]["tasks"],
+            "penalty": scores[str(t.id)]["penalty"],
+        } for t in cat_teams]
+        result[key] = sorted(rows, key=lambda r: r["rank"])
+    return result
 
 
 # --- Публикация результатов ---
@@ -1412,32 +1351,27 @@ def publish_results(event_id: UUID, background_tasks: BackgroundTasks, db: Sessi
     from models.user import User
     from core.email import send_results_email
 
-    updated = db.query(EventQuestion).filter(EventQuestion.event_id == event_id).update({"is_published": True})
+    # Письма уходят только при первой публикации: повторное нажатие не рассылает их заново
+    newly_published = (
+        db.query(EventQuestion)
+        .filter(EventQuestion.event_id == event_id, EventQuestion.is_published == False)
+        .update({"is_published": True})
+    )
     db.commit()
+    updated = db.query(EventQuestion).filter(EventQuestion.event_id == event_id).count()
 
     event = db.query(Event).filter(Event.id == event_id).first()
-    if event:
-        from models.content import TeamQuestionResult, EventQuestion as EQ
+    if event and newly_published:
         teams = db.query(Team).filter(Team.event_id == event_id).all()
-        all_pts = db.query(TeamQuestionResult).join(EQ).filter(EQ.event_id == event_id).all()
-
-        # Считаем баллы для каждой команды
-        score_map: dict = {}
-        for p in all_pts:
-            key = str(p.team_id)
-            score_map[key] = score_map.get(key, 0) + (p.points_earned or 0)
-
-        # Вычисляем место внутри каждого зачёта
+        scores = team_scores(db, event_id)
+        ranks = {}
         for cat in ("adult", "child"):
-            cat_teams = [t for t in teams if (t.category or "adult") == cat]
-            cat_teams.sort(key=lambda t: -score_map.get(str(t.id), 0))
-            for i, t in enumerate(cat_teams):
-                score_map[f"rank_{t.id}"] = i + 1
+            ranks.update(rank_teams([t for t in teams if (t.category or "adult") == cat], scores))
 
         notified = set()
         for team in teams:
-            score = score_map.get(str(team.id), 0)
-            rank = score_map.get(f"rank_{team.id}")
+            score = scores[str(team.id)]["total"]
+            rank = ranks.get(str(team.id))
             for member in team.members:
                 email = None
                 if member.user_id:
@@ -1453,7 +1387,7 @@ def publish_results(event_id: UUID, background_tasks: BackgroundTasks, db: Sessi
                         email, event.title, team.name, rank, score, str(event_id)
                     )
 
-    return {"published": updated}
+    return {"published": updated, "newly_published": newly_published, "emails_sent": bool(event and newly_published)}
 
 @router.post("/events/{event_id}/unpublish-results")
 def unpublish_results(event_id: UUID, db: Session = Depends(get_db), admin=Depends(get_current_admin)):

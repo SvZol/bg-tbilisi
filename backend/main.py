@@ -19,6 +19,7 @@ with engine.connect() as conn:
     conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_token_expires TIMESTAMP"))
     conn.execute(text("ALTER TABLE teams ADD COLUMN IF NOT EXISTS category VARCHAR DEFAULT 'adult'"))
     conn.execute(text("ALTER TABLE event_questions ADD COLUMN IF NOT EXISTS image_filename VARCHAR"))
+    conn.execute(text("ALTER TABLE teams ADD COLUMN IF NOT EXISTS penalty INTEGER DEFAULT 0"))
     conn.commit()
 
 os.makedirs("uploads", exist_ok=True)

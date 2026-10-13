@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import api from '@/lib/api'
 import MarkdownHint from '@/components/MarkdownHint'
+import AdminGuide from '@/components/AdminGuide'
 import { useAuth } from '@/context/AuthContext'
 
 interface Event { id: string; title: string; status: string; starts_at: string; ends_at: string; reg_deadline: string; city?: string; min_team_size: number; max_team_size: number; map_url?: string | null }
@@ -41,7 +42,7 @@ export default function AdminPage() {
 
   const [events, setEvents] = useState<Event[]>([])
   const [posts, setPosts] = useState<Post[]>([])
-  const [tab, setTab] = useState<'events' | 'posts' | 'teams' | 'results' | 'questions' | 'info' | 'rules' | 'users'>('events')
+  const [tab, setTab] = useState<'guide' | 'events' | 'posts' | 'teams' | 'results' | 'questions' | 'info' | 'rules' | 'users'>('events')
 
   // Пользователи
   interface AdminUser { id: string; email: string; full_name: string; role: string; is_verified: boolean; created_at: string; last_login_at: string | null; is_imported: boolean }
@@ -87,7 +88,7 @@ export default function AdminPage() {
   const [qResults, setQResults] = useState<Record<string, number>>({})
   const [qTeams, setQTeams] = useState<{ id: string; name: string }[]>([])
   const [editingQ, setEditingQ] = useState<string | null>(null)
-  const [editQForm, setEditQForm] = useState({ text: '', correct_answer: '', max_points: 1, is_published: false })
+  const [editQForm, setEditQForm] = useState({ text: '', correct_answer: '', max_points: 1 })
   const [importKpMsg, setImportKpMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
   const [importResMsg, setImportResMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
   const [importingKp, setImportingKp] = useState(false)
@@ -287,7 +288,9 @@ export default function AdminPage() {
       const endpoint = publish ? 'publish-results' : 'unpublish-results'
       const res = await api.post(`/admin/events/${selectedEventId}/${endpoint}`)
       const count = publish ? res.data.published : res.data.unpublished
-      setPublishMsg(publish ? `✓ Опубликовано ${count} вопросов — команды видят результаты` : `Скрыто ${count} вопросов`)
+      setPublishMsg(publish
+        ? (res.data.emails_sent ? `✓ Опубликовано ${count} вопросов. Письма с результатами отправлены.` : `✓ Опубликовано ${count} вопросов. Письма не отправлялись, результаты уже были опубликованы.`)
+        : `Скрыто ${count} вопросов`)
       await loadQuestionsData(selectedEventId)
     } catch { setPublishMsg('Ошибка') }
   }
@@ -398,7 +401,9 @@ export default function AdminPage() {
         setImportResMsg({ type: 'err', text: `Не найдено ${d.unmatched_teams.length} команд. Укажите соответствие ниже.` })
       } else {
         setPendingResFile(null); setUnmatchedTeams([]); setAllDbTeams([]); setNameMap({})
-        setImportResMsg({ type: 'ok', text: `✓ Создано ${d.created} результатов. Совпало команд: ${d.teams_found?.length || 0}.` })
+        setImportResMsg(d.warnings?.length
+          ? { type: 'err', text: `Загружено ${d.created} результатов, но итоги не сходятся с колонкой «Сумма» в файле: ${d.warnings.join('; ')}` }
+          : { type: 'ok', text: `✓ Создано ${d.created} результатов. Совпало команд: ${d.teams_found?.length || 0}. Итоги совпали с файлом.` })
         await loadQuestionsData(selectedEventId)
       }
     } catch (e: any) {
@@ -410,6 +415,7 @@ export default function AdminPage() {
   if (!user || user.role !== 'admin') return null
 
   const tabs = [
+    { key: 'guide', label: '🧭 Порядок работы' },
     { key: 'events', label: '📅 Мероприятия' },
     { key: 'posts', label: '📰 Новости' },
     { key: 'teams', label: '👥 Команды' },
@@ -419,6 +425,70 @@ export default function AdminPage() {
     { key: 'rules', label: '📋 Правила' },
     { key: 'users', label: '👤 Пользователи' },
   ] as const
+
+  // Строка вопроса (задание или задача): просмотр и редактирование
+  const QUESTION_VARIANTS = {
+    zadanie: {
+      label: 'Задание', multiline: false,
+      labelCls: 'text-red-700', editLabelCls: 'text-stone-500',
+      editWrap: 'p-4 space-y-3 border-t border-stone-100',
+      viewWrap: 'px-4 py-3 border-t border-stone-100 flex items-start gap-3',
+      display: (t: string) => t,
+    },
+    zadacha: {
+      label: 'Задача', multiline: true,
+      labelCls: 'text-violet-600', editLabelCls: 'text-violet-600',
+      editWrap: 'p-4 space-y-3 bg-violet-50/50 border-t border-violet-100',
+      viewWrap: 'px-4 py-3 bg-violet-50/40 border-t border-violet-100 flex items-start gap-3',
+      display: (t: string) => t.replace(/^Задача: /, ''),
+    },
+  }
+
+  const renderQuestion = (q: Question, kind: keyof typeof QUESTION_VARIANTS) => {
+    const v = QUESTION_VARIANTS[kind]
+    if (editingQ === q.id) {
+      const setText = (text: string) => setEditQForm({ ...editQForm, text })
+      return (
+        <div className={v.editWrap}>
+          <p className={`text-xs font-semibold uppercase ${v.editLabelCls}`}>{v.label}</p>
+          {v.multiline
+            ? <textarea value={editQForm.text} onChange={e => setText(e.target.value)} rows={3} className={input} />
+            : <input value={editQForm.text} onChange={e => setText(e.target.value)} className={input} />}
+          <input placeholder="Правильный ответ" value={editQForm.correct_answer} onChange={e => setEditQForm({ ...editQForm, correct_answer: e.target.value })} className={input} />
+          <input type="number" value={editQForm.max_points} onChange={e => setEditQForm({ ...editQForm, max_points: +e.target.value })} className={`${input} w-20`} />
+          <div className="flex gap-2">
+            <button onClick={() => handleSaveQuestion(q.id)} className={btnSm}>Сохранить</button>
+            <button onClick={() => setEditingQ(null)} className="text-sm px-3 py-1.5 rounded-lg border border-stone-300 text-stone-600">Отмена</button>
+          </div>
+        </div>
+      )
+    }
+    return (
+      <div className={v.viewWrap}>
+        <div className="flex-1 min-w-0">
+          <p className={`text-[10px] font-bold uppercase tracking-wide mb-0.5 ${v.labelCls}`}>{v.label}</p>
+          <p className="text-sm text-stone-800">{v.display(q.text)}</p>
+          {q.correct_answer && <p className="text-sm text-red-700 font-semibold mt-0.5">✓ {q.correct_answer}</p>}
+          {q.image_filename && (
+            <img src={`${API_URL}/uploads/${q.image_filename}`} alt="" className="mt-2 max-h-28 rounded-lg border border-stone-200" />
+          )}
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          {q.is_published
+            ? <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">✓ Опубл.</span>
+            : <span className="text-xs bg-stone-100 text-stone-500 px-2 py-0.5 rounded-full">Скрыт</span>}
+          <label className="cursor-pointer text-xs text-stone-400 hover:text-red-700" title="Загрузить фото">
+            📷
+            <input type="file" accept="image/*" className="hidden"
+              onChange={e => { const f = e.target.files?.[0]; if (f) handleQuestionImageUpload(q.id, f); e.target.value = '' }} />
+          </label>
+          <button onClick={() => { setEditingQ(q.id); setEditQForm({ text: q.text, correct_answer: q.correct_answer || '', max_points: q.max_points }) }}
+            className="text-xs text-red-700 hover:text-red-800 font-medium">Изм.</button>
+          <button onClick={() => handleDeleteQuestion(q.id)} className="text-xs text-red-400 hover:text-red-600">✕</button>
+        </div>
+      </div>
+    )
+  }
 
   const eventSelector = (onSelect: (id: string) => void) => (
     <div className="flex flex-wrap gap-2 mb-6">
@@ -458,6 +528,9 @@ export default function AdminPage() {
           </button>
         ))}
       </div>
+
+      {/* ── ПОРЯДОК РАБОТЫ ── */}
+      {tab === 'guide' && <AdminGuide go={t => setTab(t as typeof tab)} />}
 
       {/* ── МЕРОПРИЯТИЯ ── */}
       {tab === 'events' && (
@@ -507,7 +580,11 @@ export default function AdminPage() {
           </div>
 
           <div>
-            <h2 className="font-bold text-stone-900 mb-3">Все мероприятия</h2>
+            <h2 className="font-bold text-stone-900 mb-1">Все мероприятия</h2>
+            <p className="text-xs text-stone-500 mb-3">
+              Кнопки <b>«Перенести»</b> и <b>«Рассылка…»</b> отправляют письма (перед отправкой система спросит подтверждение). «Дедлайн» письма не отправляет.
+              Подробнее — на вкладке «Порядок работы».
+            </p>
             {notifyMsg && <p className="text-sm text-green-700 mb-3 font-medium">{notifyMsg}</p>}
             {notifyDlg && (
               <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={() => !notifySending && setNotifyDlg(null)}>
@@ -561,15 +638,15 @@ export default function AdminPage() {
                         <option value="closed">Закрыто</option>
                         <option value="finished">Завершено</option>
                       </select>
-                      <button onClick={() => { setDeadlineEditId(ev.id); setDeadlineValue(ev.reg_deadline.slice(0,16)) }}
+                      <button title="Меняет только срок регистрации. Письма не отправляются." onClick={() => { setDeadlineEditId(ev.id); setDeadlineValue(ev.reg_deadline.slice(0,16)) }}
                         className="text-sm border border-stone-300 px-3 py-1.5 rounded-xl hover:border-red-400 text-stone-700 transition-colors">
                         Дедлайн
                       </button>
-                      <button onClick={() => { setReschedulingId(ev.id); setRescheduleMsg(''); setRescheduleForm({ starts_at: ev.starts_at.slice(0,16), ends_at: ev.ends_at.slice(0,16), reg_deadline: ev.reg_deadline.slice(0,16) }) }}
+                      <button title="Меняет дату игры и дедлайн. Всем участникам команд уйдёт письмо о переносе." onClick={() => { setReschedulingId(ev.id); setRescheduleMsg(''); setRescheduleForm({ starts_at: ev.starts_at.slice(0,16), ends_at: ev.ends_at.slice(0,16), reg_deadline: ev.reg_deadline.slice(0,16) }) }}
                         className="text-sm border border-stone-300 px-3 py-1.5 rounded-xl hover:border-red-400 text-stone-700 transition-colors">
                         Перенести
                       </button>
-                      <button onClick={() => openNotifyDialog(ev)}
+                      <button title="Открывает окно рассылки. Ничего не отправляется, пока вы не подтвердите." onClick={() => openNotifyDialog(ev)}
                         className="text-sm border border-stone-300 px-3 py-1.5 rounded-xl hover:border-red-400 text-stone-700 transition-colors">
                         Рассылка…
                       </button>
@@ -945,22 +1022,6 @@ export default function AdminPage() {
           })}
           {selectedEventId && (
             <>
-              {/* Очистка результатов */}
-              <div className={`${card} flex items-center justify-between gap-4 flex-wrap`}>
-                <div>
-                  <p className="font-bold text-stone-900">Результаты команд</p>
-                  <p className="text-sm text-stone-500">Удалить все загруженные очки команд по КП</p>
-                </div>
-                <button onClick={async () => {
-                  if (!confirm('Удалить все результаты команд? Это действие нельзя отменить.')) return
-                  await api.delete(`/admin/events/${selectedEventId}/results`)
-                  setQResults({})
-                  loadScoreboard(selectedEventId)
-                }} className="text-sm border border-red-200 text-red-500 hover:bg-red-50 px-4 py-2 rounded-xl">
-                  🗑 Очистить результаты
-                </button>
-              </div>
-
               {/* PDF раздатки (несколько файлов) */}
               <div className={card}>
                 <div className="flex items-center justify-between mb-3">
@@ -1028,7 +1089,7 @@ export default function AdminPage() {
                     await api.patch(`/admin/events/${selectedEventId}`, { map_url: mapUrl })
                     setEvents(events.map(e => e.id === selectedEventId ? { ...e, map_url: mapUrl || null } : e))
                     setMapUrlMsg('✓ Сохранено')
-                  }} className={btnSm}>Сохранить</button>
+                  }} disabled={!!mapUrl && !/[?&]mid=[\w-]+/.test(mapUrl)} className={`${btnSm} disabled:opacity-40`}>Сохранить</button>
                   {mapUrl && (
                     <button onClick={async () => {
                       await api.patch(`/admin/events/${selectedEventId}`, { map_url: '' })
@@ -1039,7 +1100,20 @@ export default function AdminPage() {
                     </button>
                   )}
                 </div>
-                <p className="text-xs text-stone-400 mt-2">Вставьте любую ссылку на карту Google Maps (edit, viewer или share) — система сама построит iframe.</p>
+{mapUrl && (/[?&]mid=[\w-]+/.test(mapUrl)
+                  ? <p className="text-xs text-green-700 mt-2">✓ Ссылка распознана. После сохранения карта появится на <a href={`/events/${selectedEventId}`} target="_blank" rel="noreferrer" className="underline">странице игры</a>.</p>
+                  : <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mt-2">⚠ Ссылка не подходит: в ней нет «mid=». Нужна ссылка именно на карту из Google «Мои карты» (см. инструкцию ниже). Обычные ссылки Google Maps и короткие ссылки (maps.app.goo.gl) не работают.</p>)}
+                <details className="mt-3 text-sm text-stone-600">
+                  <summary className="cursor-pointer font-medium text-stone-700">Как сделать карту и вставить ссылку</summary>
+                  <ol className="list-decimal pl-5 mt-2 space-y-1.5">
+                    <li>Откройте <a href="https://www.google.com/maps/d/" target="_blank" rel="noreferrer" className="text-red-700 underline">google.com/maps/d</a> («Мои карты») и войдите в аккаунт Google. Нажмите «Создать новую карту».</li>
+                    <li>Отметьте КП: найдите место через поиск и нажмите «Добавить на карту» или поставьте метку вручную (значок маркера под строкой поиска). Метки можно назвать по номеру КП.</li>
+                    <li><b>Откройте доступ.</b> Нажмите «Поделиться» (или «Открыть доступ») и включите «Доступно всем, у кого есть ссылка». Без этого участники увидят вместо карты ошибку.</li>
+                    <li>Скопируйте ссылку из адресной строки браузера. Она выглядит так: <span className="font-mono text-xs break-all">https://www.google.com/maps/d/edit?mid=1AbC...</span>. Подойдёт и ссылка из окна «Поделиться».</li>
+                    <li>Вставьте ссылку в поле выше и нажмите «Сохранить». Под полем появится «✓ Ссылка распознана». Откройте страницу игры и проверьте, что карта показывается.</li>
+                  </ol>
+                  <p className="mt-2 text-xs text-stone-500">Метки можно менять в Google в любой момент: на сайте карта обновится сама, ссылку менять не нужно. Чтобы убрать карту с сайта, нажмите «Удалить».</p>
+                </details>
               </div>
 
               {!scoreboard ? (
@@ -1056,7 +1130,7 @@ export default function AdminPage() {
                         <table className="w-full text-sm">
                           <thead className="bg-stone-50">
                             <tr>
-                              {['#', 'Команда', 'Баллы'].map(h => (
+                              {['#', 'Команда', 'КП', 'Задачи', 'Штраф', 'Итого'].map(h => (
                                 <th key={h} className="text-left px-4 py-3 font-medium text-stone-700">{h}</th>
                               ))}
                             </tr>
@@ -1066,7 +1140,10 @@ export default function AdminPage() {
                               <tr key={r.id} className="border-t border-stone-100">
                                 <td className="px-4 py-3 font-bold text-stone-500 w-10">{r.rank}</td>
                                 <td className="px-4 py-3 text-stone-900 font-medium">{r.name}</td>
-                                <td className="px-4 py-3 text-stone-700">{r.score}</td>
+                                <td className="px-4 py-3 text-stone-700">{r.kp}</td>
+                                <td className="px-4 py-3 text-stone-700">{r.tasks}</td>
+                                <td className="px-4 py-3 text-stone-500">{r.penalty ? r.penalty : '—'}</td>
+                                <td className="px-4 py-3 text-stone-900 font-bold">{r.score}</td>
                               </tr>
                             ))}
                           </tbody>
@@ -1090,30 +1167,49 @@ export default function AdminPage() {
           {selectedEventId && (
             <>
               {/* Публикация результатов */}
-              <div className={`${card} flex items-center justify-between gap-4 flex-wrap`}>
-                <div>
-                  <h3 className="font-bold text-stone-900">Публикация результатов</h3>
-                  <p className="text-sm text-stone-500 mt-0.5">Команды увидят свои ответы и правильные ответы по всем КП</p>
-                  {publishMsg && <p className="text-sm text-green-700 mt-1">{publishMsg}</p>}
-                </div>
-                <div className="flex gap-2">
-                  <button onClick={() => handlePublishResults(true)}
-                    className="bg-green-600 text-white px-4 py-2 rounded-xl hover:bg-green-700 font-medium text-sm transition-colors">
-                    ✓ Опубликовать результаты
-                  </button>
-                  <button onClick={() => handlePublishResults(false)}
-                    className="border border-stone-300 text-stone-600 px-4 py-2 rounded-xl hover:bg-stone-50 font-medium text-sm transition-colors">
-                    Скрыть
-                  </button>
-                </div>
-              </div>
+              {(() => {
+                const publishedCount = questions.filter(q => q.is_published).length
+                const state = questions.length === 0 ? 'нет вопросов'
+                  : publishedCount === 0 ? 'скрыты от участников'
+                  : publishedCount === questions.length ? 'опубликованы, участники их видят'
+                  : `опубликована часть: ${publishedCount} из ${questions.length}`
+                return (
+                  <div className={`${card} space-y-3`}>
+                    <div className="flex items-center justify-between gap-4 flex-wrap">
+                      <div>
+                        <h3 className="font-bold text-stone-900">Публикация результатов</h3>
+                        <p className="text-sm text-stone-700 mt-0.5">Сейчас: <b>{state}</b></p>
+                        {publishMsg && <p className="text-sm text-green-700 mt-1">{publishMsg}</p>}
+                      </div>
+                      <div className="flex gap-2">
+                        <button onClick={() => {
+                          if (!confirm('Опубликовать результаты?\n\nУчастникам команд станут видны вопросы, правильные ответы и итоговая таблица, и каждому уйдёт письмо с местом и баллами (письма уходят только при первой публикации).')) return
+                          handlePublishResults(true)
+                        }}
+                          className="bg-green-600 text-white px-4 py-2 rounded-xl hover:bg-green-700 font-medium text-sm transition-colors">
+                          ✓ Опубликовать результаты
+                        </button>
+                        <button onClick={() => handlePublishResults(false)}
+                          title="Убирает вопросы и результаты с сайта. Уже отправленные письма вернуть нельзя."
+                          className="border border-stone-300 text-stone-600 px-4 py-2 rounded-xl hover:bg-stone-50 font-medium text-sm transition-colors">
+                          Скрыть
+                        </button>
+                      </div>
+                    </div>
+                    <p className="text-xs text-stone-500 bg-stone-50 rounded-xl px-3 py-2">
+                      Нажимайте «Опубликовать результаты» <b>после</b> того, как загружены вопросы (шаг 1) <b>и результаты команд</b> (шаг 2) и вы проверили итоги во вкладке «Результаты».
+                      До публикации участники не видят ни вопросов, ни ответов, ни баллов. «Скрыть» снова убирает всё с сайта.
+                    </p>
+                  </div>
+                )
+              })()}
 
               {/* Импорт из Excel */}
               <div className={card}>
                 <h3 className="font-bold text-stone-900 mb-1">Импорт из Excel</h3>
                 <p className="text-sm text-stone-500 mb-4">
                   Шаг 1: загрузите файл <span className="font-medium text-stone-700">«все КП.xlsx»</span> — создаст вопросы.<br/>
-                  Шаг 2: загрузите файл <span className="font-medium text-stone-700">«результаты.xlsx»</span> — импортирует очки команд.<br/>
+                  Шаг 2: загрузите файл <span className="font-medium text-stone-700">«проверка.xlsx»</span> — импортирует очки и штрафы команд. После этого — «Опубликовать результаты» (блок выше).<br/>
                   <span className="text-red-700">Внимание: названия команд в Excel должны точно совпадать с названиями в системе.</span>
                 </p>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1269,101 +1365,8 @@ export default function AdminPage() {
                                   <span className="text-xs text-stone-500 font-medium">{meta.label}</span>
                                 </div>
 
-                                {/* Задание */}
-                                {kp.zadanie && (() => {
-                                  const q = kp.zadanie!
-                                  return editingQ === q.id ? (
-                                    <div className="p-4 space-y-3 border-t border-stone-100">
-                                      <p className="text-xs font-semibold text-stone-500 uppercase">Задание</p>
-                                      <input value={editQForm.text} onChange={e => setEditQForm({...editQForm, text: e.target.value})} className={input} />
-                                      <input placeholder="Правильный ответ" value={editQForm.correct_answer} onChange={e => setEditQForm({...editQForm, correct_answer: e.target.value})} className={input} />
-                                      <div className="flex gap-3 items-center">
-                                        <input type="number" value={editQForm.max_points} onChange={e => setEditQForm({...editQForm, max_points: +e.target.value})} className={`${input} w-20`} />
-                                        <label className="flex items-center gap-2 text-sm text-stone-700 cursor-pointer">
-                                          <input type="checkbox" checked={editQForm.is_published} onChange={e => setEditQForm({...editQForm, is_published: e.target.checked})} />
-                                          Опубликовать
-                                        </label>
-                                      </div>
-                                      <div className="flex gap-2">
-                                        <button onClick={() => handleSaveQuestion(q.id)} className={btnSm}>Сохранить</button>
-                                        <button onClick={() => setEditingQ(null)} className="text-sm px-3 py-1.5 rounded-lg border border-stone-300 text-stone-600">Отмена</button>
-                                      </div>
-                                    </div>
-                                  ) : (
-                                    <div className="px-4 py-3 border-t border-stone-100 flex items-start gap-3">
-                                      <div className="flex-1 min-w-0">
-                                        <p className="text-[10px] font-bold text-red-700 uppercase tracking-wide mb-0.5">Задание</p>
-                                        <p className="text-sm text-stone-800">{q.text}</p>
-                                        {q.correct_answer && <p className="text-sm text-red-700 font-semibold mt-0.5">✓ {q.correct_answer}</p>}
-                                        {q.image_filename && (
-                                          <img src={`${API_URL}/uploads/${q.image_filename}`} alt="" className="mt-2 max-h-28 rounded-lg border border-stone-200" />
-                                        )}
-                                      </div>
-                                      <div className="flex items-center gap-2 shrink-0">
-                                        {q.is_published
-                                          ? <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">✓ Опубл.</span>
-                                          : <span className="text-xs bg-stone-100 text-stone-500 px-2 py-0.5 rounded-full">Скрыт</span>
-                                        }
-                                        <label className="cursor-pointer text-xs text-stone-400 hover:text-red-700" title="Загрузить фото">
-                                          📷
-                                          <input type="file" accept="image/*" className="hidden"
-                                            onChange={e => { const f = e.target.files?.[0]; if(f) handleQuestionImageUpload(q.id, f); e.target.value='' }} />
-                                        </label>
-                                        <button onClick={() => { setEditingQ(q.id); setEditQForm({text:q.text, correct_answer:q.correct_answer||'', max_points:q.max_points, is_published:q.is_published}) }}
-                                          className="text-xs text-red-700 hover:text-red-800 font-medium">Изм.</button>
-                                        <button onClick={() => handleDeleteQuestion(q.id)} className="text-xs text-red-400 hover:text-red-600">✕</button>
-                                      </div>
-                                    </div>
-                                  )
-                                })()}
-
-                                {/* Задача */}
-                                {kp.zadacha && (() => {
-                                  const q = kp.zadacha!
-                                  return editingQ === q.id ? (
-                                    <div className="p-4 space-y-3 bg-violet-50/50 border-t border-violet-100">
-                                      <p className="text-xs font-semibold text-violet-600 uppercase">Задача</p>
-                                      <textarea value={editQForm.text} onChange={e => setEditQForm({...editQForm, text: e.target.value})} rows={3} className={input} />
-                                      <input placeholder="Правильный ответ" value={editQForm.correct_answer} onChange={e => setEditQForm({...editQForm, correct_answer: e.target.value})} className={input} />
-                                      <div className="flex gap-3 items-center">
-                                        <input type="number" value={editQForm.max_points} onChange={e => setEditQForm({...editQForm, max_points: +e.target.value})} className={`${input} w-20`} />
-                                        <label className="flex items-center gap-2 text-sm text-stone-700 cursor-pointer">
-                                          <input type="checkbox" checked={editQForm.is_published} onChange={e => setEditQForm({...editQForm, is_published: e.target.checked})} />
-                                          Опубликовать
-                                        </label>
-                                      </div>
-                                      <div className="flex gap-2">
-                                        <button onClick={() => handleSaveQuestion(q.id)} className={btnSm}>Сохранить</button>
-                                        <button onClick={() => setEditingQ(null)} className="text-sm px-3 py-1.5 rounded-lg border border-stone-300 text-stone-600">Отмена</button>
-                                      </div>
-                                    </div>
-                                  ) : (
-                                    <div className="px-4 py-3 bg-violet-50/40 border-t border-violet-100 flex items-start gap-3">
-                                      <div className="flex-1 min-w-0">
-                                        <p className="text-[10px] font-bold text-violet-600 uppercase tracking-wide mb-0.5">Задача</p>
-                                        <p className="text-sm text-stone-800">{q.text.replace(/^Задача: /,'')}</p>
-                                        {q.correct_answer && <p className="text-sm text-red-700 font-semibold mt-0.5">✓ {q.correct_answer}</p>}
-                                        {q.image_filename && (
-                                          <img src={`${API_URL}/uploads/${q.image_filename}`} alt="" className="mt-2 max-h-28 rounded-lg border border-stone-200" />
-                                        )}
-                                      </div>
-                                      <div className="flex items-center gap-2 shrink-0">
-                                        {q.is_published
-                                          ? <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">✓ Опубл.</span>
-                                          : <span className="text-xs bg-stone-100 text-stone-500 px-2 py-0.5 rounded-full">Скрыт</span>
-                                        }
-                                        <label className="cursor-pointer text-xs text-stone-400 hover:text-red-700" title="Загрузить фото">
-                                          📷
-                                          <input type="file" accept="image/*" className="hidden"
-                                            onChange={e => { const f = e.target.files?.[0]; if(f) handleQuestionImageUpload(q.id, f); e.target.value='' }} />
-                                        </label>
-                                        <button onClick={() => { setEditingQ(q.id); setEditQForm({text:q.text, correct_answer:q.correct_answer||'', max_points:q.max_points, is_published:q.is_published}) }}
-                                          className="text-xs text-red-700 hover:text-red-800 font-medium">Изм.</button>
-                                        <button onClick={() => handleDeleteQuestion(q.id)} className="text-xs text-red-400 hover:text-red-600">✕</button>
-                                      </div>
-                                    </div>
-                                  )
-                                })()}
+                                {kp.zadanie && renderQuestion(kp.zadanie, 'zadanie')}
+                                {kp.zadacha && renderQuestion(kp.zadacha, 'zadacha')}
                               </div>
                             )
                           })

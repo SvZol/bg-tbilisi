@@ -11,7 +11,7 @@ interface KpResult {
   zadacha?: { text: string; correct_answer: string | null; team_answer: string | null; points_earned: number; image_filename?: string | null }
 }
 
-interface TeamInfo { id: string; name: string; event_id: string }
+interface TeamInfo { id: string; name: string; event_id: string; penalty?: number }
 interface EventPdf { id: string; filename: string; display_name: string }
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
@@ -99,7 +99,8 @@ export default function TeamResultsPage() {
     </div>
   )
 
-  const totalPts   = results.reduce((s, r) => s + (r.zadanie?.points_earned ?? 0) + (r.zadacha?.points_earned ?? 0), 0)
+  const penalty    = team.penalty ?? 0
+  const totalPts   = results.reduce((s, r) => s + (r.zadanie?.points_earned ?? 0) + (r.zadacha?.points_earned ?? 0), 0) + penalty
   const zadCount   = results.filter(r => r.zadanie).length
   const zadOk      = results.filter(r => (r.zadanie?.points_earned ?? 0) > 0).length
   const taskCount  = results.filter(r => r.zadacha).length
@@ -143,7 +144,7 @@ export default function TeamResultsPage() {
           <div className="bg-red-50 border border-red-200 rounded-2xl p-5 grid grid-cols-3 gap-4 text-center">
             <div>
               <p className="text-3xl font-extrabold text-red-700">{totalPts}</p>
-              <p className="text-xs text-stone-500 mt-1">Всего очков</p>
+              <p className="text-xs text-stone-500 mt-1">Всего очков{penalty !== 0 && ` (с учётом штрафа ${penalty})`}</p>
             </div>
             <div>
               <p className="text-3xl font-extrabold text-stone-800">

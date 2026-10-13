@@ -26,7 +26,7 @@ interface TeamMember { id: string; user_id: string | null; guest_name: string | 
 interface Team { id: string; name: string; status: string; category: string; captain_name: string | null; member_count: number | null; description: string | null; members: TeamMember[] }
 interface Question { id: string; number: number; kp_type: string | null; text: string; correct_answer: string | null; image_filename?: string | null }
 interface EventPdf { id: string; filename: string; display_name: string }
-interface QTeam { id: string; name: string; category: string }
+interface QTeam { id: string; name: string; category: string; penalty?: number }
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
@@ -150,7 +150,8 @@ export default function EventDetailPage() {
         team: t,
         kp:    zadaniya.reduce((s, q) => s + (qResults[`${q.id}|${t.id}`] ?? 0), 0),
         tasks: zadachi.reduce((s, q) => s + (qResults[`${q.id}|${t.id}`] ?? 0), 0),
-        total: questions.reduce((s, q) => s + (qResults[`${q.id}|${t.id}`] ?? 0), 0),
+        penalty: t.penalty ?? 0,
+        total: questions.reduce((s, q) => s + (qResults[`${q.id}|${t.id}`] ?? 0), 0) + (t.penalty ?? 0),
       }))
       .sort((a, b) => b.total - a.total || b.kp - a.kp)
   }
@@ -162,7 +163,9 @@ export default function EventDetailPage() {
 
   const myTeam = user ? teams.find(t => t.members.some(m => m.user_id === user.id)) : null
 
-  const ScoreTable = ({ board, title }: { board: ReturnType<typeof buildScoreboard>, title: string }) => (
+  const ScoreTable = ({ board, title }: { board: ReturnType<typeof buildScoreboard>, title: string }) => {
+    const hasPenalty = board.some(b => b.penalty !== 0)
+    return (
     <div>
       <h3 className="text-lg font-bold text-stone-800 mb-3">{title}</h3>
       <div className="border border-stone-200 rounded-2xl overflow-hidden">
@@ -173,11 +176,12 @@ export default function EventDetailPage() {
               <th className="text-left px-4 py-3 font-semibold">Команда</th>
               <th className="px-4 py-3 font-semibold text-center">КП</th>
               {zadachi.length > 0 && <th className="px-4 py-3 font-semibold text-center">Задачи</th>}
+              {hasPenalty && <th className="px-4 py-3 font-semibold text-center">Штраф</th>}
               <th className="px-4 py-3 font-semibold text-center">Итого</th>
             </tr>
           </thead>
           <tbody>
-            {board.map(({ team: t, kp, tasks, total }, idx) => (
+            {board.map(({ team: t, kp, tasks, penalty, total }, idx) => (
               <tr key={t.id} className={`border-t border-stone-100 ${idx === 0 ? 'bg-amber-50' : idx % 2 === 0 ? 'bg-white' : 'bg-stone-50'}`}>
                 <td className="px-4 py-3 font-bold text-stone-700 text-lg text-center">
                   {idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : idx + 1}
@@ -185,6 +189,7 @@ export default function EventDetailPage() {
                 <td className="px-4 py-3 font-semibold text-stone-900">{t.name}</td>
                 <td className="px-4 py-3 text-center text-stone-700">{kp}</td>
                 {zadachi.length > 0 && <td className="px-4 py-3 text-center text-stone-700">{tasks}</td>}
+                {hasPenalty && <td className="px-4 py-3 text-center text-stone-500">{penalty !== 0 ? penalty : '—'}</td>}
                 <td className="px-4 py-3 text-center font-bold text-red-700">{total}</td>
               </tr>
             ))}
@@ -193,6 +198,7 @@ export default function EventDetailPage() {
       </div>
     </div>
   )
+  }
 
   return (
     <div className="space-y-8">

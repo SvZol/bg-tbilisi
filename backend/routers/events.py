@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from database import get_db
 from models.event import Event
 from models.content import EventPdf
+from core.registration import effective_status
 from pydantic import BaseModel
 from datetime import datetime
 from uuid import UUID
@@ -26,25 +27,36 @@ class EventOut(BaseModel):
     class Config:
         from_attributes = True
 
+def _public_event(event: Event) -> EventOut:
+    out = EventOut.model_validate(event)
+    out.status = effective_status(event)
+    return out
+
+
 @router.get("/", response_model=list[EventOut])
 def list_events(db: Session = Depends(get_db)):
-    return db.query(Event).filter(Event.status.in_(["open", "closed", "finished"])).order_by(Event.starts_at.desc()).all()
+    events = db.query(Event).filter(Event.status.in_(["open", "closed", "finished"])).order_by(Event.starts_at.desc()).all()
+    return [_public_event(e) for e in events]
 
 @router.get("/{event_id}", response_model=EventOut)
 def get_event(event_id: UUID, db: Session = Depends(get_db)):
     event = db.query(Event).filter(Event.id == event_id).first()
     if not event:
         raise HTTPException(status_code=404, detail="Мероприятие не найдено")
-    return event
+    return _public_event(event)
 
-@router.get("/{event_id}/pdfs")
-def get_event_pdfs(event_id: UUID, db: Session = Depends(get_db)):
+def list_event_pdfs(db: Session, event_id: UUID, legacy_name: str) -> list[dict]:
+    """PDF-раздатки игры; старый одиночный файл (results_pdf) показывается первым."""
     event = db.query(Event).filter(Event.id == event_id).first()
     result = []
-    # backward compat: legacy single PDF
     if event and event.results_pdf:
-        result.append({"id": "legacy", "filename": event.results_pdf, "display_name": "Раздатка"})
+        result.append({"id": "legacy", "filename": event.results_pdf, "display_name": legacy_name})
     pdfs = db.query(EventPdf).filter(EventPdf.event_id == event_id).order_by(EventPdf.uploaded_at).all()
     for p in pdfs:
         result.append({"id": str(p.id), "filename": p.filename, "display_name": p.display_name or p.filename})
     return result
+
+
+@router.get("/{event_id}/pdfs")
+def get_event_pdfs(event_id: UUID, db: Session = Depends(get_db)):
+    return list_event_pdfs(db, event_id, legacy_name="Раздатка")

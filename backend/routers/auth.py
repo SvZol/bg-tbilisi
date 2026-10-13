@@ -1,7 +1,7 @@
 import logging
 import secrets
 from datetime import datetime, timedelta, timezone
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Query
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from sqlalchemy import func
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
@@ -10,7 +10,7 @@ from models.user import User
 from schemas.user import UserRegister, UserLogin, UserOut, Token
 from core.security import (
     hash_password, verify_password, validate_password, create_access_token,
-    get_current_user, get_current_admin,
+    get_current_user,
 )
 from core.email import send_verification_email, send_reset_email
 
@@ -80,16 +80,6 @@ def get_me(db: Session = Depends(get_db), user_id: str = Depends(get_current_use
     if not user:
         raise HTTPException(status_code=404, detail="Пользователь не найден")
     return user
-
-
-@router.get("/users/search")
-def search_users(q: str = Query(min_length=3, max_length=50), db: Session = Depends(get_db), admin=Depends(get_current_admin)):
-    """Поиск пользователей — только для администратора (иначе утекают email всех пользователей)."""
-    pattern = "%" + q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
-    users = db.query(User).filter(
-        (User.email.ilike(pattern, escape="\\")) | (User.full_name.ilike(pattern, escape="\\"))
-    ).limit(10).all()
-    return [{"id": str(u.id), "full_name": u.full_name, "email": u.email} for u in users]
 
 
 # --- Подтверждение email ---

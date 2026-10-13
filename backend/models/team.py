@@ -19,6 +19,7 @@ class Team(Base):
     member_count = Column(Integer, nullable=True)
     description = Column(Text, nullable=True)
     invite_code = Column(String(12), unique=True, nullable=True, index=True)
+    penalty = Column(Integer, default=0)  # штрафные очки, отрицательное число или 0
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     event = relationship("Event", back_populates="teams")

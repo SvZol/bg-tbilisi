@@ -15,6 +15,7 @@ migrations = [
     "CREATE UNIQUE INDEX IF NOT EXISTS uq_teams_invite_code ON teams (invite_code) WHERE invite_code IS NOT NULL",
     "ALTER TABLE event_questions ADD COLUMN IF NOT EXISTS kp_type VARCHAR",
     "ALTER TABLE events ADD COLUMN IF NOT EXISTS map_url VARCHAR",
+    "ALTER TABLE teams ADD COLUMN IF NOT EXISTS penalty INTEGER DEFAULT 0",
     "CREATE TABLE IF NOT EXISTS event_pdfs (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), event_id UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE, filename VARCHAR NOT NULL, display_name VARCHAR, uploaded_at TIMESTAMP DEFAULT NOW())",
 ]
 

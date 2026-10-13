@@ -4,6 +4,7 @@ from database import get_db
 from models.team import Team, TeamMember
 from models.event import Event
 from core.security import get_current_user
+from core.registration import effective_status
 from models.user import User
 from pydantic import BaseModel, EmailStr, Field
 from uuid import UUID
@@ -110,6 +111,12 @@ def _require_captain(team_id: UUID, user_id: str, db: Session) -> Team:
     return team
 
 
+def downgrade_child_if_small(team: Team, db: Session) -> None:
+    """Если в команде остался один участник, она автоматически переходит во взрослый зачёт."""
+    if team.category == "child" and db.query(TeamMember).filter(TeamMember.team_id == team.id).count() < 2:
+        team.category = "adult"
+
+
 def _check_user_exists(user_id: Optional[UUID], db: Session) -> None:
     if user_id and not db.query(User.id).filter(User.id == user_id).first():
         raise HTTPException(status_code=400, detail="Пользователь не найден")
@@ -120,7 +127,7 @@ def create_team(data: TeamCreate, db: Session = Depends(get_db), user_id: str = 
     event = db.query(Event).filter(Event.id == data.event_id).first()
     if not event:
         raise HTTPException(status_code=404, detail="Мероприятие не найдено")
-    if event.status != "open":
+    if effective_status(event) != "open":
         raise HTTPException(status_code=400, detail="Регистрация закрыта")
 
     # Валидация: детский зачёт требует 2+ участников
@@ -220,10 +227,7 @@ def remove_member(team_id: UUID, member_id: UUID, db: Session = Depends(get_db),
 
     db.delete(member)
     db.flush()
-    # Если остался 1 участник — автоматически переключаем на взрослый зачёт
-    remaining = db.query(TeamMember).filter(TeamMember.team_id == team_id).count()
-    if remaining < 2 and team.category == "child":
-        team.category = "adult"
+    downgrade_child_if_small(team, db)
     db.commit()
     return {"ok": True}
 
@@ -315,7 +319,7 @@ def claim_team(data: ClaimInput, db: Session = Depends(get_db), user_id: str = D
 @router.get("/{team_id}/public")
 def get_team_public(team_id: UUID, db: Session = Depends(get_db)):
     team = _get_team_or_404(team_id, db)
-    return {"id": str(team.id), "name": team.name, "event_id": str(team.event_id)}
+    return {"id": str(team.id), "name": team.name, "event_id": str(team.event_id), "penalty": team.penalty or 0}
 
 
 @router.get("/{team_id}")
