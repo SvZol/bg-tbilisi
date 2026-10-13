@@ -20,6 +20,10 @@ with engine.connect() as conn:
     conn.execute(text("ALTER TABLE teams ADD COLUMN IF NOT EXISTS category VARCHAR DEFAULT 'adult'"))
     conn.execute(text("ALTER TABLE event_questions ADD COLUMN IF NOT EXISTS image_filename VARCHAR"))
     conn.execute(text("ALTER TABLE teams ADD COLUMN IF NOT EXISTS penalty INTEGER DEFAULT 0"))
+    conn.execute(text("ALTER TABLE teams ADD COLUMN IF NOT EXISTS finish_time VARCHAR"))
+    conn.execute(text("ALTER TABLE event_questions ADD COLUMN IF NOT EXISTS address_ru VARCHAR"))
+    conn.execute(text("ALTER TABLE event_questions ADD COLUMN IF NOT EXISTS address_en VARCHAR"))
+    conn.execute(text("ALTER TABLE event_questions ADD COLUMN IF NOT EXISTS object_note VARCHAR"))
     conn.commit()
 
 os.makedirs("uploads", exist_ok=True)

@@ -59,6 +59,9 @@ class EventQuestion(Base):
     max_points = Column(Integer, default=1)
     is_published = Column(Boolean, default=False)
     image_filename = Column(String, nullable=True)  # для фото-КП и задач с картинкой
+    address_ru = Column(String, nullable=True)   # где находится КП (показывается после публикации)
+    address_en = Column(String, nullable=True)
+    object_note = Column(String, nullable=True)  # «Объект»: что именно на КП искать
 
     results = relationship("TeamQuestionResult", back_populates="question")
 

@@ -10,7 +10,7 @@ interface Event { id: string; title: string; status: string; starts_at: string; 
 interface Post { id: string; title: string; content: string; is_published: boolean; image_filename: string | null; created_at: string }
 interface TeamMember { id: string; user_id: string | null; guest_name: string | null; guest_email: string | null; display_name: string | null; display_email: string | null; role: string; is_registered: boolean; last_login_at: string | null; is_imported: boolean }
 interface Team { id: string; name: string; status: string; category: string; members: TeamMember[] }
-interface Question { id: string; number: number; kp_type: string | null; text: string; correct_answer: string | null; max_points: number; is_published: boolean; image_filename?: string | null }
+interface Question { id: string; number: number; kp_type: string | null; text: string; correct_answer: string | null; max_points: number; is_published: boolean; image_filename?: string | null; address_ru?: string | null; address_en?: string | null; object_note?: string | null }
 
 const input = "w-full border border-stone-300 rounded-xl px-3 py-2 text-stone-900 focus:outline-none focus:ring-2 focus:ring-red-400 bg-white"
 const btn = "bg-red-600 text-white px-5 py-2 rounded-xl hover:bg-red-700 font-medium transition-colors"
@@ -468,6 +468,9 @@ export default function AdminPage() {
         <div className="flex-1 min-w-0">
           <p className={`text-[10px] font-bold uppercase tracking-wide mb-0.5 ${v.labelCls}`}>{v.label}</p>
           <p className="text-sm text-stone-800">{v.display(q.text)}</p>
+          {kind === 'zadanie' && (q.address_ru || q.address_en) && (
+            <p className="text-xs text-stone-500 mt-0.5">📍 {q.address_ru}{q.address_en ? ` · ${q.address_en}` : ''}{q.object_note ? ` — ${q.object_note}` : ''}</p>
+          )}
           {q.correct_answer && <p className="text-sm text-red-700 font-semibold mt-0.5">✓ {q.correct_answer}</p>}
           {q.image_filename && (
             <img src={`${API_URL}/uploads/${q.image_filename}`} alt="" className="mt-2 max-h-28 rounded-lg border border-stone-200" />
@@ -1130,7 +1133,7 @@ export default function AdminPage() {
                         <table className="w-full text-sm">
                           <thead className="bg-stone-50">
                             <tr>
-                              {['#', 'Команда', 'КП', 'Задачи', 'Штраф', 'Итого'].map(h => (
+                              {['Место', 'Команда', 'КП', 'Задачи', 'Штраф', 'Итого', 'Финиш'].map(h => (
                                 <th key={h} className="text-left px-4 py-3 font-medium text-stone-700">{h}</th>
                               ))}
                             </tr>
@@ -1144,6 +1147,7 @@ export default function AdminPage() {
                                 <td className="px-4 py-3 text-stone-700">{r.tasks}</td>
                                 <td className="px-4 py-3 text-stone-500">{r.penalty ? r.penalty : '—'}</td>
                                 <td className="px-4 py-3 text-stone-900 font-bold">{r.score}</td>
+                                <td className="px-4 py-3 text-stone-500">{r.finish_time ?? '—'}</td>
                               </tr>
                             ))}
                           </tbody>
@@ -1208,8 +1212,8 @@ export default function AdminPage() {
               <div className={card}>
                 <h3 className="font-bold text-stone-900 mb-1">Импорт из Excel</h3>
                 <p className="text-sm text-stone-500 mb-4">
-                  Шаг 1: загрузите файл <span className="font-medium text-stone-700">«все КП.xlsx»</span> — создаст вопросы.<br/>
-                  Шаг 2: загрузите файл <span className="font-medium text-stone-700">«проверка.xlsx»</span> — импортирует очки и штрафы команд. После этого — «Опубликовать результаты» (блок выше).<br/>
+                  Шаг 1: загрузите файл <span className="font-medium text-stone-700">«все КП.xlsx»</span> — создаст вопросы, ответы и адреса КП (адреса участники увидят только после публикации результатов).<br/>
+                  Шаг 2: загрузите файл <span className="font-medium text-stone-700">«проверка.xlsx»</span> — импортирует очки, штрафы и время финиша команд. Места: больше очков — выше; при равных очках выше тот, кто финишировал раньше; равные очки и время — общее место. После этого — «Опубликовать результаты» (блок выше).<br/>
                   <span className="text-red-700">Внимание: названия команд в Excel должны точно совпадать с названиями в системе.</span>
                 </p>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

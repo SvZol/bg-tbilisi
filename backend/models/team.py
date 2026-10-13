@@ -20,6 +20,7 @@ class Team(Base):
     description = Column(Text, nullable=True)
     invite_code = Column(String(12), unique=True, nullable=True, index=True)
     penalty = Column(Integer, default=0)  # штрафные очки, отрицательное число или 0
+    finish_time = Column(String, nullable=True)  # время финиша «ЧЧ:ММ:СС», для разрешения ничьих
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     event = relationship("Event", back_populates="teams")

@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { formatDeadline, PARTICIPATION_FEE } from '@/lib/format'
+import KpPlace from '@/components/KpPlace'
 import api from '@/lib/api'
 import { useAuth } from '@/context/AuthContext'
 
@@ -24,9 +25,9 @@ function getMapIds(mapUrl: string | null): { embedUrl: string; viewUrl: string }
 }
 interface TeamMember { id: string; user_id: string | null; guest_name: string | null; full_name: string | null; role: string }
 interface Team { id: string; name: string; status: string; category: string; captain_name: string | null; member_count: number | null; description: string | null; members: TeamMember[] }
-interface Question { id: string; number: number; kp_type: string | null; text: string; correct_answer: string | null; image_filename?: string | null }
+interface Question { id: string; number: number; kp_type: string | null; text: string; correct_answer: string | null; image_filename?: string | null; address_ru?: string | null; address_en?: string | null; object_note?: string | null }
 interface EventPdf { id: string; filename: string; display_name: string }
-interface QTeam { id: string; name: string; category: string; penalty?: number }
+interface QTeam { id: string; name: string; category: string; penalty?: number; kp?: number; tasks?: number; total?: number; rank?: number; finish_time?: string | null }
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
@@ -144,16 +145,19 @@ export default function EventDetailPage() {
   const zadaniya = questions.filter(q => q.number < 100)
   const zadachi  = questions.filter(q => q.number >= 100)
 
+  // Очки и места считает сервер (одинаковые очки и время — одно место)
   function buildScoreboard(categoryTeams: QTeam[]) {
     return categoryTeams
       .map(t => ({
         team: t,
-        kp:    zadaniya.reduce((s, q) => s + (qResults[`${q.id}|${t.id}`] ?? 0), 0),
-        tasks: zadachi.reduce((s, q) => s + (qResults[`${q.id}|${t.id}`] ?? 0), 0),
+        kp: t.kp ?? 0,
+        tasks: t.tasks ?? 0,
         penalty: t.penalty ?? 0,
-        total: questions.reduce((s, q) => s + (qResults[`${q.id}|${t.id}`] ?? 0), 0) + (t.penalty ?? 0),
+        total: t.total ?? 0,
+        rank: t.rank ?? 0,
+        finish: t.finish_time ?? null,
       }))
-      .sort((a, b) => b.total - a.total || b.kp - a.kp)
+      .sort((a, b) => a.rank - b.rank || a.team.name.localeCompare(b.team.name))
   }
 
   const adultTeams = qTeamsWithCategory.filter(t => t.category !== 'child')
@@ -165,6 +169,7 @@ export default function EventDetailPage() {
 
   const ScoreTable = ({ board, title }: { board: ReturnType<typeof buildScoreboard>, title: string }) => {
     const hasPenalty = board.some(b => b.penalty !== 0)
+    const hasFinish = board.some(b => b.finish)
     return (
     <div>
       <h3 className="text-lg font-bold text-stone-800 mb-3">{title}</h3>
@@ -177,19 +182,21 @@ export default function EventDetailPage() {
               <th className="px-4 py-3 font-semibold text-center">КП</th>
               {zadachi.length > 0 && <th className="px-4 py-3 font-semibold text-center">Задачи</th>}
               {hasPenalty && <th className="px-4 py-3 font-semibold text-center">Штраф</th>}
+              {hasFinish && <th className="px-4 py-3 font-semibold text-center">Финиш</th>}
               <th className="px-4 py-3 font-semibold text-center">Итого</th>
             </tr>
           </thead>
           <tbody>
-            {board.map(({ team: t, kp, tasks, penalty, total }, idx) => (
-              <tr key={t.id} className={`border-t border-stone-100 ${idx === 0 ? 'bg-amber-50' : idx % 2 === 0 ? 'bg-white' : 'bg-stone-50'}`}>
+            {board.map(({ team: t, kp, tasks, penalty, total, rank, finish }) => (
+              <tr key={t.id} className={`border-t border-stone-100 ${rank === 1 ? 'bg-amber-50' : 'bg-white'}`}>
                 <td className="px-4 py-3 font-bold text-stone-700 text-lg text-center">
-                  {idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : idx + 1}
+                  {rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : rank}
                 </td>
                 <td className="px-4 py-3 font-semibold text-stone-900">{t.name}</td>
                 <td className="px-4 py-3 text-center text-stone-700">{kp}</td>
                 {zadachi.length > 0 && <td className="px-4 py-3 text-center text-stone-700">{tasks}</td>}
                 {hasPenalty && <td className="px-4 py-3 text-center text-stone-500">{penalty !== 0 ? penalty : '—'}</td>}
+                {hasFinish && <td className="px-4 py-3 text-center text-stone-500">{finish ?? '—'}</td>}
                 <td className="px-4 py-3 text-center font-bold text-red-700">{total}</td>
               </tr>
             ))}
@@ -312,6 +319,7 @@ export default function EventDetailPage() {
                         </span>
                         <span className="text-xs font-medium text-stone-500">{meta.label}</span>
                       </div>
+                      <KpPlace place={kp.zadanie} />
                       {kp.zadanie && (
                         <div className="px-4 py-3 border-t border-stone-100">
                           <p className="text-[10px] font-bold text-red-700 uppercase tracking-wide mb-1">Задание</p>

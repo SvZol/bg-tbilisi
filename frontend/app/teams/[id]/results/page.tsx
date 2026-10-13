@@ -2,12 +2,13 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
+import KpPlace from '@/components/KpPlace'
 import api from '@/lib/api'
 
 interface KpResult {
   kp_number: number
   kp_type?: string | null
-  zadanie?: { text: string; correct_answer: string | null; team_answer: string | null; points_earned: number; image_filename?: string | null }
+  zadanie?: { text: string; correct_answer: string | null; team_answer: string | null; points_earned: number; image_filename?: string | null; address_ru?: string | null; address_en?: string | null; object_note?: string | null }
   zadacha?: { text: string; correct_answer: string | null; team_answer: string | null; points_earned: number; image_filename?: string | null }
 }
 
@@ -178,6 +179,7 @@ export default function TeamResultsPage() {
                     <span className="text-xs text-stone-500 font-medium">{meta.name}</span>
                     <span className="ml-auto text-sm font-bold text-stone-700">{kpTotal} очк.</span>
                   </div>
+                  <KpPlace place={row.zadanie} />
                   {/* Задание + Задача */}
                   {row.zadanie && <AnswerRow label="Задание" item={row.zadanie} />}
                   {row.zadacha && <AnswerRow label="Задача" item={row.zadacha} isTask />}

@@ -364,6 +364,7 @@ def get_team_results(team_id: UUID, db: Session = Depends(get_db)):
         kp_map[kp_num][key] = {
             'text': q.text,
             'correct_answer': q.correct_answer,
+            'address_ru': q.address_ru, 'address_en': q.address_en, 'object_note': q.object_note,
             'team_answer': r.team_answer,
             'points_earned': r.points_earned,
         }

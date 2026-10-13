@@ -6,7 +6,7 @@ from models.content import Post, Page
 from models.event import Event
 from models.team import Team, TeamMember
 from core.security import get_current_admin
-from core.scoring import team_scores, rank_teams
+from core.scoring import team_scores, rank_teams, parse_finish_time
 from core.uploads import save_upload, remove_upload, read_limited, UPLOAD_DIR, MAX_EXCEL_BYTES
 from pydantic import BaseModel, Field, model_validator
 from uuid import UUID
@@ -436,6 +436,20 @@ class QuestionUpdate(BaseModel):
     max_points: Optional[int] = None
     is_published: Optional[bool] = None
 
+def _teams_with_scores(db: Session, event_id: UUID, teams: list) -> list[dict]:
+    """Команды с очками, штрафом, временем финиша и местом в своём зачёте."""
+    scores = team_scores(db, event_id)
+    ranks = {}
+    for cat in ("adult", "child"):
+        ranks.update(rank_teams([t for t in teams if (t.category or "adult") == cat], scores))
+    return [{
+        "id": str(t.id), "name": t.name, "category": t.category or "adult",
+        "kp": scores[str(t.id)]["kp"], "tasks": scores[str(t.id)]["tasks"],
+        "penalty": scores[str(t.id)]["penalty"], "total": scores[str(t.id)]["total"],
+        "finish_time": scores[str(t.id)]["finish_time"], "rank": ranks[str(t.id)],
+    } for t in teams]
+
+
 def _q_out(q) -> dict:
     return {
         "id": str(q.id), "event_id": str(q.event_id), "number": q.number,
@@ -443,6 +457,7 @@ def _q_out(q) -> dict:
         "text": q.text, "correct_answer": q.correct_answer,
         "max_points": q.max_points, "is_published": q.is_published,
         "image_filename": q.image_filename,
+        "address_ru": q.address_ru, "address_en": q.address_en, "object_note": q.object_note,
     }
 
 class QuestionResultUpsert(BaseModel):
@@ -526,11 +541,7 @@ def get_question_results_admin(event_id: UUID, db: Session = Depends(get_db), ad
     teams = db.query(Team).filter(Team.event_id == event_id).all()
     results = db.query(TeamQuestionResult).join(EventQuestion).filter(EventQuestion.event_id == event_id).all()
     result_map = {f"{r.question_id}|{r.team_id}": r.points_earned for r in results}
-    return {
-        "questions": [_q_out(q) for q in qs],
-        "teams": [{"id": str(t.id), "name": t.name, "category": t.category or "adult", "penalty": t.penalty or 0} for t in teams],
-        "results": result_map,
-    }
+    return {"questions": [_q_out(q) for q in qs], "teams": _teams_with_scores(db, event_id, teams), "results": result_map}
 
 # --- Шаблон Excel для результатов ---
 
@@ -674,6 +685,12 @@ async def generate_results_template(
                 ws.cell(r, c).value = f'=SUMIF($B${first}:$B${last},"{kind}",{col}${first}:{col}${last})'
             ws.cell(r, c).alignment = Alignment(horizontal="center")
 
+    ws.append([None])
+    ws.append([None, "Время финиша"])
+    for c in range(4, 4 + n_teams):
+        ws.cell(ws.max_row, c).number_format = "hh:mm:ss"
+        ws.cell(ws.max_row, c).alignment = Alignment(horizontal="center")
+
     buf = io.BytesIO()
     wb.save(buf)
     buf.seek(0)
@@ -715,21 +732,29 @@ async def import_kp_excel(
     # Загружаем существующие вопросы для upsert (не удаляем — чтобы можно было дополнять после публикации)
     existing_qs = {q.number: q for q in db.query(EventQuestion).filter(EventQuestion.event_id == event_id).all()}
 
-    def _upsert_q(number: int, kp_type: str, text: str, correct_answer, max_points: int):
-        """Создаёт вопрос или обновляет существующий по номеру."""
+    def _upsert_q(number: int, kp_type: str, text: str, correct_answer, max_points: int, place: dict | None = None):
+        """Создаёт вопрос или обновляет существующий по номеру. place — адрес КП (только у задания)."""
+        place = place or {}
         if number in existing_qs:
             q = existing_qs[number]
             q.kp_type = kp_type
             q.text = text
             if correct_answer is not None:
                 q.correct_answer = correct_answer
+            for field, value in place.items():
+                setattr(q, field, value)
             return False  # updated
         else:
             db.add(EventQuestion(
                 event_id=event_id, number=number, kp_type=kp_type,
-                text=text, correct_answer=correct_answer, max_points=max_points
+                text=text, correct_answer=correct_answer, max_points=max_points, **place
             ))
             return True  # created
+
+    def _cell(row, idx):
+        value = row[idx] if idx < len(row) else None
+        text = str(value).strip() if value is not None else ""
+        return text if text and text != "None" else None
 
     SKIP_TYPES = {'тип кп', 'header', ''}
     created = 0
@@ -751,6 +776,7 @@ async def import_kp_excel(
         if kp_type == 'Финиш':
             num = 99
 
+        place = {"address_ru": _cell(row, 5), "address_en": _cell(row, 6), "object_note": _cell(row, 7)}
         task_text = str(row[8]).strip() if row[8] else None
         answer = str(row[9]).strip() if row[9] else None
         if answer == 'None':
@@ -758,16 +784,16 @@ async def import_kp_excel(
 
         # Задание КП (если есть текст задания или ответ)
         if task_text and task_text != 'None':
-            is_new = _upsert_q(num, kp_type, task_text, answer, 1)
+            is_new = _upsert_q(num, kp_type, task_text, answer, 1, place)
             if is_new: created += 1
             else: updated += 1
         elif answer and answer != 'None':
-            is_new = _upsert_q(num, kp_type, f"КП-{num:02d}", answer, 1)
+            is_new = _upsert_q(num, kp_type, f"КП-{num:02d}", answer, 1, place)
             if is_new: created += 1
             else: updated += 1
         elif kp_type in ('Старт', 'Финиш'):
             # Старт и Финиш без задания — всё равно создаём/обновляем
-            is_new = _upsert_q(num, kp_type, kp_type, None, 0)
+            is_new = _upsert_q(num, kp_type, kp_type, None, 0, place)
             if is_new: created += 1
             else: updated += 1
 
@@ -1123,6 +1149,7 @@ async def import_results_excel(
     unmatched: list[str] = []
     created = 0
     current_kp: Optional[int] = None
+    finish_row = None   # строка «Время финиша»
     penalty_row = None  # строка «штраф»
     sum_row = None      # строка «Сумма» — для сверки с нашим подсчётом
 
@@ -1133,6 +1160,9 @@ async def import_results_excel(
             continue
         if label == "сумма":
             sum_row = row
+            continue
+        if label.startswith("время финиша"):
+            finish_row = row
             continue
 
         col0 = row[0]
@@ -1212,6 +1242,8 @@ async def import_results_excel(
             continue
         value = _cell_int(penalty_row, pts_col if pts_col is not None else ans_col)
         db_team.penalty = -abs(value) if value else 0
+        idx = pts_col if pts_col is not None else ans_col
+        db_team.finish_time = parse_finish_time(finish_row[idx]) if finish_row is not None and idx < len(finish_row) else None
     db.flush()
 
     # Сверяем итоги из файла со своим подсчётом (баллы за вопросы + штраф)
@@ -1266,11 +1298,7 @@ def get_questions_public(event_id: UUID, db: Session = Depends(get_db)):
     teams = db.query(Team).filter(Team.event_id == event_id).all()
     results = db.query(TeamQuestionResult).join(EventQuestion).filter(EventQuestion.event_id == event_id).all()
     result_map = {f"{r.question_id}|{r.team_id}": r.points_earned for r in results}
-    return {
-        "questions": [_q_out(q) for q in qs],
-        "teams": [{"id": str(t.id), "name": t.name, "category": t.category or "adult", "penalty": t.penalty or 0} for t in teams],
-        "results": result_map,
-    }
+    return {"questions": [_q_out(q) for q in qs], "teams": _teams_with_scores(db, event_id, teams), "results": result_map}
 
 # --- Страницы (правила, информация) ---
 
@@ -1336,9 +1364,9 @@ def get_scoreboard(event_id: UUID, db: Session = Depends(get_db), admin=Depends(
             "id": str(t.id), "name": t.name, "category": t.category or "adult",
             "rank": ranks[str(t.id)], "score": scores[str(t.id)]["total"],
             "kp": scores[str(t.id)]["kp"], "tasks": scores[str(t.id)]["tasks"],
-            "penalty": scores[str(t.id)]["penalty"],
+            "penalty": scores[str(t.id)]["penalty"], "finish_time": scores[str(t.id)]["finish_time"],
         } for t in cat_teams]
-        result[key] = sorted(rows, key=lambda r: r["rank"])
+        result[key] = sorted(rows, key=lambda r: (r["rank"], r["name"]))
     return result
 
 
